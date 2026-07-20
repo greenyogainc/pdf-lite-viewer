@@ -4,3 +4,4 @@ packaging/out/
 dist/
 *.user
 .vs/
+__pycache__/
