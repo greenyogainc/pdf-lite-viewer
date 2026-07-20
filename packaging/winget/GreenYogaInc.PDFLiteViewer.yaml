@@ -1,0 +1,27 @@
+# winget singleton manifest template — fill InstallerUrl/InstallerSha256 after
+# publishing a release, then submit to https://github.com/microsoft/winget-pkgs
+# under manifests/g/GreenYogaInc/PDFLiteViewer/1.0.0/
+PackageIdentifier: GreenYogaInc.PDFLiteViewer
+PackageVersion: 1.0.0
+PackageName: PDF Lite Viewer
+Publisher: Green Yoga Inc
+License: MIT
+LicenseUrl: https://opensource.org/licenses/MIT
+Copyright: Copyright (c) 2026 Green Yoga Inc
+ShortDescription: A free, lightweight PDF viewer for Windows.
+Description: |-
+  Free, minimal, fast PDF viewer. Three viewing modes: facing pages,
+  single page full screen, and continuous scrolling. No bloat.
+Tags:
+  - pdf
+  - viewer
+  - reader
+  - freeware
+Installers:
+  - Architecture: x64
+    InstallerType: msix
+    InstallerUrl: https://REPLACE-ME/PdfLiteViewer-1.0.0-win-x64.msix
+    InstallerSha256: REPLACE-ME
+PackageLocale: en-US
+ManifestType: singleton
+ManifestVersion: 1.6.0
