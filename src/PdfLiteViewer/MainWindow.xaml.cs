@@ -302,50 +302,12 @@ public partial class MainWindow : Window
 
     // ---------- Printing ----------
 
-    private void Print_Click(object sender, RoutedEventArgs e) => ShowPrintDialog();
+    private void Print_Click(object sender, RoutedEventArgs e) => ShowPrintPreview();
 
-    private void ShowPrintDialog()
+    private void ShowPrintPreview()
     {
         if (_doc is null) return;
-
-        var dlg = new System.Windows.Controls.PrintDialog
-        {
-            UserPageRangeEnabled = true,
-            MinPage = 1,
-            MaxPage = (uint)_doc.PageCount,
-            CurrentPageEnabled = true,
-        };
-        if (dlg.ShowDialog() != true) return;
-
-        int first = 0, last = _doc.PageCount - 1;
-        if (dlg.PageRangeSelection == PageRangeSelection.UserPages)
-        {
-            first = Math.Clamp(dlg.PageRange.PageFrom - 1, 0, _doc.PageCount - 1);
-            last = Math.Clamp(dlg.PageRange.PageTo - 1, first, _doc.PageCount - 1);
-        }
-        else if (dlg.PageRangeSelection == PageRangeSelection.CurrentPage)
-        {
-            first = last = _currentPage;
-        }
-
-        var pageSize = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-        var paginator = new PdfPrintPaginator(_doc, first, last, pageSize);
-        string jobName = System.IO.Path.GetFileName(_doc.FilePath);
-
-        try
-        {
-            Mouse.OverrideCursor = Cursors.Wait;
-            dlg.PrintDocument(paginator, jobName);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, $"Printing failed.\n\n{ex.Message}",
-                "PDF Lite Viewer", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            Mouse.OverrideCursor = null;
-        }
+        new PrintPreviewWindow(_doc, _currentPage) { Owner = this }.ShowDialog();
     }
 
     // ---------- Fullscreen ----------
@@ -383,7 +345,7 @@ public partial class MainWindow : Window
         switch (e.Key)
         {
             case Key.O when ctrl: ShowOpenDialog(); break;
-            case Key.P when ctrl: ShowPrintDialog(); break;
+            case Key.P when ctrl: ShowPrintPreview(); break;
             case Key.F11: ToggleFullscreen(); break;
             case Key.Escape when _fullscreen: ToggleFullscreen(); break;
 
