@@ -175,9 +175,24 @@ public partial class PrintPreviewWindow : Window
         {
             // ~1300px is plenty for an on-screen preview at any window size.
             var bmp = await _doc.RenderPageAsync(pdfIndex, 1300, _cts.Token);
-            PageImage.Source = bmp;
+            if (BwCheck.IsChecked == true)
+            {
+                var gray = new System.Windows.Media.Imaging.FormatConvertedBitmap(
+                    bmp, System.Windows.Media.PixelFormats.Gray8, null, 0);
+                gray.Freeze();
+                PageImage.Source = gray;
+            }
+            else
+            {
+                PageImage.Source = bmp;
+            }
         }
         catch (OperationCanceledException) { }
+    }
+
+    private void Bw_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded) _ = ShowPageAsync();
     }
 
     private void Prev_Click(object sender, RoutedEventArgs e) { _previewIndex--; _ = ShowPageAsync(); }
@@ -225,7 +240,13 @@ public partial class PrintPreviewWindow : Window
 
         var dlg = new PrintDialog { PrintQueue = queue };
         if (dlg.PrintTicket is not null)
+        {
             dlg.PrintTicket.CopyCount = copies;
+            if (BwCheck.IsChecked == true)
+                dlg.PrintTicket.OutputColor = OutputColor.Grayscale;
+            if (DraftCheck.IsChecked == true)
+                dlg.PrintTicket.OutputQuality = OutputQuality.Draft;
+        }
 
         var paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
         var paginator = new PdfPrintPaginator(_doc, _pages, paper);
