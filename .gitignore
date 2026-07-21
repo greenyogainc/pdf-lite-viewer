@@ -5,3 +5,6 @@ dist/
 *.user
 .vs/
 __pycache__/
+
+# VarAlign local store (machine-local variable-tracking data)
+.varmem/
