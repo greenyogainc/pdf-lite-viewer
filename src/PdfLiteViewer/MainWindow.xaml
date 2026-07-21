@@ -73,11 +73,11 @@
                     <Button Style="{StaticResource BarButton}" Content="Open…" Click="Open_Click" ToolTip="Open a PDF (Ctrl+O)"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <RadioButton x:Name="ModeFacing" Style="{StaticResource ModeButton}" Content="Facing" GroupName="mode"
-                                 Checked="Mode_Checked" ToolTip="Facing pages (2)"/>
+                                 IsChecked="True" Checked="Mode_Checked" ToolTip="Facing pages (2)"/>
                     <RadioButton x:Name="ModeSingle" Style="{StaticResource ModeButton}" Content="Single" GroupName="mode"
                                  Checked="Mode_Checked" ToolTip="Single page (1) — press F11 for full screen"/>
                     <RadioButton x:Name="ModeContinuous" Style="{StaticResource ModeButton}" Content="Scroll" GroupName="mode"
-                                 IsChecked="True" Checked="Mode_Checked" ToolTip="Continuous scrolling (3)"/>
+                                 Checked="Mode_Checked" ToolTip="Continuous scrolling (3)"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click" ToolTip="Previous page (Page Up)"/>
                     <TextBox x:Name="PageBox" Width="44" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"

@@ -18,7 +18,7 @@ public partial class MainWindow : Window
     private const int KeepBuffer = 5;       // pages kept in memory beyond the viewport
 
     private PdfDoc? _doc;
-    private ViewMode _mode = ViewMode.Continuous;
+    private ViewMode _mode = ViewMode.Facing;
     private int _currentPage;               // 0-based
     private double _zoom = 1.0;
     private bool _fitToView = true;
@@ -307,7 +307,17 @@ public partial class MainWindow : Window
     private void ShowPrintPreview()
     {
         if (_doc is null) return;
-        new PrintPreviewWindow(_doc, _currentPage) { Owner = this }.ShowDialog();
+        try
+        {
+            new PrintPreviewWindow(_doc, _currentPage) { Owner = this }.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PdfLiteViewer.log"),
+                $"[dbg] preview failed: {ex}\n");
+            MessageBox.Show(this, $"Print preview failed.\n\n{ex.Message}",
+                "PDF Lite Viewer", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     // ---------- Fullscreen ----------
