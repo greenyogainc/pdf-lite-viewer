@@ -14,6 +14,7 @@ displays them well, and that's it.
 - Fast PDFium rendering with lazy page loading — large documents open instantly
 - Zoom (`Ctrl` `+`/`−`/`0`, `Ctrl`+wheel), fit-to-view, page navigation, go-to-page
 - Open via dialog (`Ctrl+O`), drag & drop, or double-click a `.pdf` (file association)
+- Print (`Ctrl+P`) with page-range support, via the standard Windows print dialog
 - That's the whole feature list, by design.
 
 ## Keyboard reference
@@ -21,6 +22,7 @@ displays them well, and that's it.
 | Key | Action |
 |---|---|
 | `Ctrl+O` | Open PDF |
+| `Ctrl+P` | Print |
 | `1` / `2` / `3` | Single / Facing / Continuous mode |
 | `F11` (`Esc` to exit) | Full screen |
 | `←` `→` / `PgUp` `PgDn` | Previous / next page |
