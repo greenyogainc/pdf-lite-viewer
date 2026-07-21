@@ -94,6 +94,8 @@
                     <Button Style="{StaticResource BarButton}" Content="+" Click="ZoomIn_Click" ToolTip="Zoom in (Ctrl++)"/>
                     <Button Style="{StaticResource BarButton}" Content="Fit" Click="Fit_Click" ToolTip="Fit page width (Ctrl+0)"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
+                    <Button Style="{StaticResource BarButton}" Content="Print…" Click="Print_Click" ToolTip="Print (Ctrl+P)"/>
+                    <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <Button Style="{StaticResource BarButton}" Content="⛶" Click="Fullscreen_Click" ToolTip="Full screen (F11)"/>
                 </StackPanel>
             </DockPanel>

@@ -57,6 +57,30 @@ public sealed class PdfDoc
         }
     }
 
+    /// <summary>Synchronous render, used by the print paginator (one page at a time).</summary>
+    public BitmapSource RenderPageSync(int pageIndex, int targetPixelWidth)
+    {
+        RenderLock.Wait();
+        try
+        {
+            using var sk = PDFtoImage.Conversion.ToImage(
+                _bytes,
+                page: pageIndex,
+                options: new PDFtoImage.RenderOptions(
+                    Width: targetPixelWidth,
+                    WithAspectRatio: true,
+                    WithAnnotations: true,
+                    WithFormFill: true,
+                    AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
+                    BackgroundColor: SKColors.White));
+            return ToBitmapSource(sk);
+        }
+        finally
+        {
+            RenderLock.Release();
+        }
+    }
+
     private static BitmapSource ToBitmapSource(SKBitmap bmp)
     {
         SKBitmap src = bmp;
