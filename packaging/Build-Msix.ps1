@@ -31,8 +31,20 @@ dotnet publish $proj -c $Configuration -r $Rid --self-contained true `
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
 Write-Host "== Staging manifest and assets ==" -ForegroundColor Cyan
-Copy-Item (Join-Path $PSScriptRoot "Package.appxmanifest") (Join-Path $stage "AppxManifest.xml") -Force
+$manifestPath = Join-Path $stage "AppxManifest.xml"
+Copy-Item (Join-Path $PSScriptRoot "Package.appxmanifest") $manifestPath -Force
 Copy-Item (Join-Path $PSScriptRoot "Assets") $stage -Recurse -Force
+
+# Stamp the CPU architecture into the package identity — without this, every
+# architecture produces the same full name (..._Neutral_) and the Store
+# rejects multi-arch submissions as duplicates.
+$arch = switch ($Rid) {
+    "win-arm64" { "arm64" }
+    default     { "x64" }
+}
+[xml]$xml = Get-Content $manifestPath
+$xml.Package.Identity.SetAttribute("ProcessorArchitecture", $arch)
+$xml.Save($manifestPath)
 
 Write-Host "== Locating makeappx.exe ==" -ForegroundColor Cyan
 $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" -ErrorAction SilentlyContinue |
