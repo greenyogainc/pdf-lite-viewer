@@ -1,3 +1,4 @@
+using System.Printing;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -5,15 +6,16 @@ using System.Windows.Input;
 namespace PdfLiteViewer;
 
 /// <summary>
-/// Shows pages exactly as the print paginator will place them on paper
-/// (same scale-to-fit math), with page-range selection. "Print…" then opens
-/// the system dialog for printer/copies and prints the previewed range.
+/// The app's one print surface: live preview (same scale-to-fit math as the
+/// paginator), page-range selection, printer picker and copies — Print sends
+/// the job directly, no second OS dialog. (The Win11 print dialog's built-in
+/// preview pane only serves the UWP print pipeline, so it can't be used here.)
 /// </summary>
 public partial class PrintPreviewWindow : Window
 {
     private readonly PdfDoc _doc;
     private readonly int _currentDocPage;
-    private Size _paper;
+    private Size _paper = new(816, 1056);   // letter fallback
     private List<int> _pages = new();
     private int _previewIndex;
     private CancellationTokenSource _cts = new();
@@ -23,26 +25,90 @@ public partial class PrintPreviewWindow : Window
         InitializeComponent();
         _doc = doc;
         _currentDocPage = currentDocPage;
-        Title = $"Print preview — {System.IO.Path.GetFileName(doc.FilePath)}";
+        Title = $"Print — {System.IO.Path.GetFileName(doc.FilePath)}";
 
-        // Paper size of the default printer; letter fallback when there is none.
+        LoadPrinters();
+        ApplyPaperSize();
+        RebuildPages();
+    }
+
+    private void LoadPrinters()
+    {
         try
         {
-            var probe = new PrintDialog();
-            _paper = new Size(probe.PrintableAreaWidth, probe.PrintableAreaHeight);
-            if (_paper.Width < 50 || _paper.Height < 50) throw new InvalidOperationException();
+            using var server = new LocalPrintServer();
+            var queues = server.GetPrintQueues(new[]
+            {
+                EnumeratedPrintQueueTypes.Local,
+                EnumeratedPrintQueueTypes.Connections,
+            }).Select(q => q.FullName).ToList();
+
+            string? defaultName = null;
+            try { defaultName = LocalPrintServer.GetDefaultPrintQueue().FullName; } catch { }
+
+            foreach (var name in queues)
+                PrinterBox.Items.Add(name);
+
+            PrinterBox.SelectedItem = defaultName is not null && queues.Contains(defaultName)
+                ? defaultName
+                : queues.FirstOrDefault();
         }
         catch
         {
-            _paper = new Size(816, 1056);
+            // No print system available; leave the list empty.
+        }
+
+        PrintBtn.IsEnabled = PrinterBox.SelectedItem is not null;
+    }
+
+    private PrintQueue? SelectedQueue()
+    {
+        if (PrinterBox.SelectedItem is not string name) return null;
+        try
+        {
+            using var server = new LocalPrintServer();
+            return server.GetPrintQueues(new[]
+            {
+                EnumeratedPrintQueueTypes.Local,
+                EnumeratedPrintQueueTypes.Connections,
+            }).FirstOrDefault(q => q.FullName == name);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void ApplyPaperSize()
+    {
+        try
+        {
+            var queue = SelectedQueue();
+            if (queue is not null)
+            {
+                var dlg = new PrintDialog { PrintQueue = queue };
+                var size = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
+                if (size.Width >= 50 && size.Height >= 50)
+                    _paper = size;
+            }
+        }
+        catch
+        {
+            // keep current paper size
         }
 
         Paper.Width = _paper.Width;
         Paper.Height = _paper.Height;
         PaperCanvas.Width = _paper.Width;
         PaperCanvas.Height = _paper.Height;
+    }
 
-        RebuildPages();
+    private void Printer_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        PrintBtn.IsEnabled = PrinterBox.SelectedItem is not null;
+        ApplyPaperSize();
+        _ = ShowPageAsync();
     }
 
     private void RebuildPages()
@@ -133,6 +199,8 @@ public partial class PrintPreviewWindow : Window
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (e.OriginalSource is TextBox && e.Key is Key.Left or Key.Right) return;
+
         switch (e.Key)
         {
             case Key.Escape: Close(); break;
@@ -140,6 +208,7 @@ public partial class PrintPreviewWindow : Window
             case Key.PageUp: _previewIndex--; _ = ShowPageAsync(); break;
             case Key.Right:
             case Key.PageDown: _previewIndex++; _ = ShowPageAsync(); break;
+            case Key.Enter:
             case Key.P when Keyboard.Modifiers.HasFlag(ModifierKeys.Control): Print_Click(sender, e); break;
             default: return;
         }
@@ -149,12 +218,15 @@ public partial class PrintPreviewWindow : Window
     private void Print_Click(object sender, RoutedEventArgs e)
     {
         if (_pages.Count == 0) return;
+        var queue = SelectedQueue();
+        if (queue is null) return;
 
-        var dlg = new PrintDialog();
-        if (dlg.ShowDialog() != true) return;
+        int copies = int.TryParse(CopiesBox.Text, out int c) ? Math.Clamp(c, 1, 99) : 1;
 
-        // Printing happens at the printer's actual paper size, which can
-        // differ from the preview's default-printer guess.
+        var dlg = new PrintDialog { PrintQueue = queue };
+        if (dlg.PrintTicket is not null)
+            dlg.PrintTicket.CopyCount = copies;
+
         var paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
         var paginator = new PdfPrintPaginator(_doc, _pages, paper);
 

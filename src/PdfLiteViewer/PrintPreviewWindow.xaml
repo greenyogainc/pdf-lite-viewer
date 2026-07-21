@@ -1,8 +1,8 @@
 <Window x:Class="PdfLiteViewer.PrintPreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Print preview"
-        Width="760" Height="880"
+        Title="Print"
+        Width="900" Height="880"
         Background="#FF404040"
         WindowStartupLocation="CenterOwner"
         KeyDown="Window_KeyDown">
@@ -59,7 +59,14 @@
                              TextChanged="RangeBox_Changed"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <Button Style="{StaticResource BarButton}" Content="Print…" FontWeight="SemiBold" Click="Print_Click"/>
+                    <TextBlock Text="Printer:" Foreground="{StaticResource BarFg}" VerticalAlignment="Center" Margin="4,0" FontSize="13"/>
+                    <ComboBox x:Name="PrinterBox" MinWidth="170" MaxWidth="230" VerticalContentAlignment="Center"
+                              FontSize="13" SelectionChanged="Printer_Changed"/>
+                    <TextBlock Text="Copies:" Foreground="{StaticResource BarFg}" VerticalAlignment="Center" Margin="8,0,4,0" FontSize="13"/>
+                    <TextBox x:Name="CopiesBox" Width="36" Text="1" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                             Background="#FF1E1E1E" Foreground="{StaticResource BarFg}" BorderBrush="#FF4A4A4A" FontSize="13"/>
+                    <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
+                    <Button x:Name="PrintBtn" Style="{StaticResource BarButton}" Content="Print" FontWeight="SemiBold" Click="Print_Click"/>
                     <Button Style="{StaticResource BarButton}" Content="Cancel" Click="Cancel_Click"/>
                 </StackPanel>
             </DockPanel>
