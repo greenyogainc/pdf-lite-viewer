@@ -47,7 +47,14 @@ public partial class MainWindow : Window
         _renderTimer.Tick += (_, _) => { _renderTimer.Stop(); _ = UpdateRenderedPagesAsync(); };
 
         Loaded += MainWindow_Loaded;
-        SizeChanged += (_, _) => { if (_fitToView) ApplyLayout(scrollToCurrent: false); };
+        SizeChanged += (_, _) =>
+        {
+            if (!_fitToView) return;
+            // The layout pass for this resize (e.g. maximize/fullscreen) hasn't
+            // completed yet, so Scroller.ViewportWidth/Height are still stale here.
+            // Defer until after layout settles so FitZoom() sees the real size.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
+        };
     }
 
     private static ItemsPanelTemplate MakePanelTemplate(Orientation orientation)
@@ -343,7 +350,8 @@ public partial class MainWindow : Window
             ToolbarHost.Visibility = Visibility.Visible;
             _fullscreen = false;
         }
-        if (_fitToView) ApplyLayout(scrollToCurrent: false);
+        if (_fitToView)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
     }
 
     // ---------- Input ----------
