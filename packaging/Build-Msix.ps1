@@ -53,7 +53,10 @@ if (-not $makeappx) {
     throw "makeappx.exe not found. Install the Windows 10/11 SDK (winget install Microsoft.WindowsSDK.10.0.26100)."
 }
 
-$msix = Join-Path $outDir "PdfLiteViewer-1.0.0-$Rid.msix"
+# Derive the marketing version (first three parts) from the manifest identity
+# so the filename never drifts from the packaged version.
+$ver = ($xml.Package.Identity.Version -split '\.')[0..2] -join '.'
+$msix = Join-Path $outDir "PdfLiteViewer-$ver-$Rid.msix"
 Write-Host "== Packing $msix ==" -ForegroundColor Cyan
 & $makeappx.FullName pack /d $stage /p $msix /o
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }

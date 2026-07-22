@@ -8,7 +8,7 @@
        (PFN: GreenYogaInc.PDFLiteViewer_4k1k80w661cc6). -->
   <Identity Name="GreenYogaInc.PDFLiteViewer"
             Publisher="CN=1F15826A-1F07-4E59-AC9A-622A84CC59FF"
-            Version="1.0.0.0" />
+            Version="1.0.1.0" />
 
   <Properties>
     <DisplayName>PDF Lite Viewer</DisplayName>

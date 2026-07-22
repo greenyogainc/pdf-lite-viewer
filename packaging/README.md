@@ -12,7 +12,7 @@ Build the package:
 .\packaging\Build-Msix.ps1 -Rid win-arm64   # ARM64
 ```
 
-Output: `packaging/out/PdfLiteViewer-1.0.0-<rid>.msix`.
+Output: `packaging/out/PdfLiteViewer-<version>-<rid>.msix` (version derived from `Package.appxmanifest`).
 
 Submission steps (one-time Partner Center setup):
 

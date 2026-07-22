@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>PdfLiteViewer</AssemblyName>
     <RootNamespace>PdfLiteViewer</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Green Yoga Inc</Authors>
     <Company>Green Yoga Inc</Company>
     <Product>PDF Lite Viewer</Product>
