@@ -1,0 +1,22 @@
+{
+ "packaging/Build-Msix.ps1||root||tools/make_icons.py||ROOT": {
+  "note": "Different files, different languages (PowerShell vs Python), each independently computing its own repo root using idiomatic per-language naming ($root local vs ROOT module constant). No shared state, no coupling.",
+  "ts": "2026-07-21T05:21:40.210782-06:00",
+  "verdict": "not_duplicate"
+ },
+ "src/PdfLiteViewer/PdfPrintPaginator.cs||IsPageCountValid||src/PdfLiteViewer/PdfPrintPaginator.cs||PageCount": {
+  "note": "Both are required overrides of the abstract System.Windows.Documents.DocumentPaginator base class - distinct bool/int members mandated by the .NET framework API, not an app-level duplicate. Token-overlap false positive on the shared \"PageCount\" substring.",
+  "ts": "2026-07-21T05:21:52.241179-06:00",
+  "verdict": "not_duplicate"
+ },
+ "tools/make_icons.py|draw_icon|lift||tools/make_icons.py|draw_icon|shade_w": {
+  "note": "lift is a vertical Y-offset for page-corner lift; shade_w is a horizontal width for the spine shading polygon. Distinct semantics, coincidentally same 0.045 ratio for visual proportion.",
+  "ts": "2026-07-21T05:21:21.926547-06:00",
+  "verdict": "not_duplicate"
+ },
+ "tools/make_icons.py||BG_BOT||tools/make_icons.py||SPINE": {
+  "note": "BG_BOT is the gradient bottom color, SPINE is the book-spine line color; distinct design tokens that happen to share the same dark-green RGB by aesthetic choice, not a required invariant.",
+  "ts": "2026-07-21T05:21:31.068620-06:00",
+  "verdict": "not_duplicate"
+ }
+}
