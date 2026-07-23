@@ -23,9 +23,10 @@ public partial class PrintPreviewWindow : Window
     public PrintPreviewWindow(PdfDoc doc, int currentDocPage)
     {
         InitializeComponent();
+        Strings.ApplyFlowDirection(this);
         _doc = doc;
         _currentDocPage = currentDocPage;
-        Title = $"Print — {System.IO.Path.GetFileName(doc.FilePath)}";
+        Title = string.Format(Strings.Get("PrintWindowTitleFormat"), System.IO.Path.GetFileName(doc.FilePath));
 
         LoadPrinters();
         ApplyPaperSize();
@@ -153,13 +154,13 @@ public partial class PrintPreviewWindow : Window
     {
         if (_pages.Count == 0)
         {
-            PageLabel.Text = "0 / 0";
+            PageLabel.Text = string.Format(Strings.Get("PageLabelFormat"), 0, 0);
             return;
         }
 
         _previewIndex = Math.Clamp(_previewIndex, 0, _pages.Count - 1);
         int pdfIndex = _pages[_previewIndex];
-        PageLabel.Text = $"{_previewIndex + 1} / {_pages.Count}";
+        PageLabel.Text = string.Format(Strings.Get("PageLabelFormat"), _previewIndex + 1, _pages.Count);
 
         var (ptW, ptH) = _doc.PageSizes[pdfIndex];
         var rect = PdfPrintPaginator.PlacePage(ptW, ptH, _paper);
@@ -259,8 +260,7 @@ public partial class PrintPreviewWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Printing failed.\n\n{ex.Message}",
-                "PDF Lite Viewer", MessageBoxButton.OK, MessageBoxImage.Error);
+            Strings.ShowError(this, string.Format(Strings.Get("PrintingFailedMessage"), ex.Message));
         }
         finally
         {

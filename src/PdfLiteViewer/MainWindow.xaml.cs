@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Strings.ApplyFlowDirection(this);
         PagesHost.ItemsSource = _items;
 
         _verticalPanel = MakePanelTemplate(Orientation.Vertical);
@@ -45,6 +46,8 @@ public partial class MainWindow : Window
 
         _renderTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _renderTimer.Tick += (_, _) => { _renderTimer.Stop(); _ = UpdateRenderedPagesAsync(); };
+
+        PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), 0);
 
         Loaded += MainWindow_Loaded;
         SizeChanged += (_, _) =>
@@ -77,7 +80,7 @@ public partial class MainWindow : Window
 
     private void ShowOpenDialog()
     {
-        var dlg = new OpenFileDialog { Filter = "PDF files (*.pdf)|*.pdf", Title = "Open PDF" };
+        var dlg = new OpenFileDialog { Filter = Strings.Get("OpenFileDialogFilter"), Title = Strings.Get("OpenFileDialogTitle") };
         if (dlg.ShowDialog() == true)
             OpenFile(dlg.FileName);
     }
@@ -90,16 +93,16 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Could not open \"{path}\".\n\n{ex.Message}",
-                "PDF Lite Viewer", MessageBoxButton.OK, MessageBoxImage.Error);
+            Strings.ShowError(this, string.Format(Strings.Get("OpenFileErrorMessage"), path, ex.Message));
             return;
         }
 
-        Title = $"{System.IO.Path.GetFileName(path)} — PDF Lite Viewer";
+        Title = string.Format(Strings.Get("MainWindowTitleFormat"),
+            System.IO.Path.GetFileName(path), Strings.Get("AppTitle"));
         EmptyHint.Visibility = Visibility.Collapsed;
         _currentPage = 0;
         _fitToView = true;
-        PageCountText.Text = $"/ {_doc.PageCount}";
+        PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), _doc.PageCount);
         RebuildItems();
     }
 
@@ -322,8 +325,7 @@ public partial class MainWindow : Window
         {
             System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PdfLiteViewer.log"),
                 $"[dbg] preview failed: {ex}\n");
-            MessageBox.Show(this, $"Print preview failed.\n\n{ex.Message}",
-                "PDF Lite Viewer", MessageBoxButton.OK, MessageBoxImage.Error);
+            Strings.ShowError(this, string.Format(Strings.Get("PrintPreviewFailedMessage"), ex.Message));
         }
     }
 
@@ -356,9 +358,32 @@ public partial class MainWindow : Window
 
     // ---------- Input ----------
 
-    private void Window_KeyDown(object sender, KeyEventArgs e)
+    // Wired to PreviewKeyDown (tunneling), not KeyDown: ScrollViewer and the
+    // mode RadioButtons have their own built-in bubble-phase handling for
+    // arrow/paging keys (scrolling, group navigation) that would otherwise
+    // swallow the keystroke before it ever reached a bubble-phase handler here.
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+
+        // Let the page-number box keep the keys that mean typing/caret movement inside it,
+        // so the window's global shortcuts don't fire while the user edits the page number.
+        if (ReferenceEquals(e.OriginalSource, PageBox) && e.Key is Key.D1 or Key.D2 or Key.D3
+            or Key.Left or Key.Right or Key.Home or Key.End)
+            return;
+
+        // When the page viewport itself has focus and there's actually room to pan
+        // a zoomed-in page, let ScrollViewer's own scrolling handle these keys
+        // instead of always stealing them for page-turning. The >= 1 threshold matches
+        // Scroller_PreviewMouseWheel: WPF fit-to-view layout can leave a sub-pixel
+        // ScrollableWidth/Height that is not real room to scroll.
+        if (ReferenceEquals(e.OriginalSource, Scroller))
+        {
+            bool wantsHorizontalScroll = e.Key is Key.Left or Key.Right && Scroller.ScrollableWidth >= 1;
+            bool wantsVerticalScroll = e.Key is Key.PageUp or Key.PageDown or Key.Home or Key.End && Scroller.ScrollableHeight >= 1;
+            if (wantsHorizontalScroll || wantsVerticalScroll)
+                return;
+        }
 
         switch (e.Key)
         {

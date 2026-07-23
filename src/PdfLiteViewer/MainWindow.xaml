@@ -1,13 +1,14 @@
 <Window x:Class="PdfLiteViewer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PDF Lite Viewer"
+        xmlns:local="clr-namespace:PdfLiteViewer"
+        Title="{local:Loc AppTitle}"
         Width="1100" Height="850"
         Background="#FF404040"
         AllowDrop="True"
         Drop="Window_Drop"
         DragOver="Window_DragOver"
-        KeyDown="Window_KeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.Resources>
         <SolidColorBrush x:Key="BarBg" Color="#FF2B2B2B"/>
@@ -70,39 +71,44 @@
         <Border x:Name="ToolbarHost" DockPanel.Dock="Top" Background="{StaticResource BarBg}">
             <DockPanel Margin="8,5" LastChildFill="False">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Button Style="{StaticResource BarButton}" Content="Open…" Click="Open_Click" ToolTip="Open a PDF (Ctrl+O)"/>
+                    <Button Style="{StaticResource BarButton}" Content="{local:Loc Open}" Click="Open_Click" ToolTip="{local:Loc OpenTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
-                    <RadioButton x:Name="ModeFacing" Style="{StaticResource ModeButton}" Content="Facing" GroupName="mode"
-                                 IsChecked="True" Checked="Mode_Checked" ToolTip="Facing pages (2)"/>
-                    <RadioButton x:Name="ModeSingle" Style="{StaticResource ModeButton}" Content="Single" GroupName="mode"
-                                 Checked="Mode_Checked" ToolTip="Single page (1) — press F11 for full screen"/>
-                    <RadioButton x:Name="ModeContinuous" Style="{StaticResource ModeButton}" Content="Scroll" GroupName="mode"
-                                 Checked="Mode_Checked" ToolTip="Continuous scrolling (3)"/>
+                    <RadioButton x:Name="ModeFacing" Style="{StaticResource ModeButton}" Content="{local:Loc Facing}" GroupName="mode"
+                                 IsChecked="True" Checked="Mode_Checked" ToolTip="{local:Loc FacingTooltip}"/>
+                    <RadioButton x:Name="ModeSingle" Style="{StaticResource ModeButton}" Content="{local:Loc Single}" GroupName="mode"
+                                 Checked="Mode_Checked" ToolTip="{local:Loc SingleTooltip}"/>
+                    <RadioButton x:Name="ModeContinuous" Style="{StaticResource ModeButton}" Content="{local:Loc Scroll}" GroupName="mode"
+                                 Checked="Mode_Checked" ToolTip="{local:Loc ScrollTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
-                    <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click" ToolTip="Previous page (Page Up)"/>
-                    <TextBox x:Name="PageBox" Width="44" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
-                             Background="#FF1E1E1E" Foreground="{StaticResource BarFg}" BorderBrush="#FF4A4A4A"
-                             KeyDown="PageBox_KeyDown" FontSize="13"/>
-                    <TextBlock x:Name="PageCountText" Text="/ 0" Foreground="{StaticResource BarFg}"
-                               VerticalAlignment="Center" Margin="6,0" FontSize="13"/>
-                    <Button Style="{StaticResource BarButton}" Content="▶" Click="Next_Click" ToolTip="Next page (Page Down)"/>
+                    <!-- NoMirror: "◀"/"▶" must keep their literal meaning regardless of UI language. -->
+                    <StackPanel Orientation="Horizontal" Style="{StaticResource NoMirror}">
+                        <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click" ToolTip="{local:Loc PrevPageTooltip}"/>
+                        <TextBox x:Name="PageBox" Width="44" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                                 Background="#FF1E1E1E" Foreground="{StaticResource BarFg}" BorderBrush="#FF4A4A4A"
+                                 KeyDown="PageBox_KeyDown" FontSize="13"/>
+                        <TextBlock x:Name="PageCountText" Foreground="{StaticResource BarFg}"
+                                   VerticalAlignment="Center" Margin="6,0" FontSize="13"/>
+                        <Button Style="{StaticResource BarButton}" Content="▶" Click="Next_Click" ToolTip="{local:Loc NextPageTooltip}"/>
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <Button Style="{StaticResource BarButton}" Content="−" Click="ZoomOut_Click" ToolTip="Zoom out (Ctrl+-)"/>
+                    <Button Style="{StaticResource BarButton}" Content="−" Click="ZoomOut_Click" ToolTip="{local:Loc ZoomOutTooltip}"/>
                     <TextBlock x:Name="ZoomText" Text="100%" Foreground="{StaticResource BarFg}"
                                VerticalAlignment="Center" MinWidth="44" TextAlignment="Center" FontSize="13"/>
-                    <Button Style="{StaticResource BarButton}" Content="+" Click="ZoomIn_Click" ToolTip="Zoom in (Ctrl++)"/>
-                    <Button Style="{StaticResource BarButton}" Content="Fit" Click="Fit_Click" ToolTip="Fit page width (Ctrl+0)"/>
+                    <Button Style="{StaticResource BarButton}" Content="+" Click="ZoomIn_Click" ToolTip="{local:Loc ZoomInTooltip}"/>
+                    <Button Style="{StaticResource BarButton}" Content="{local:Loc Fit}" Click="Fit_Click" ToolTip="{local:Loc FitTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
-                    <Button Style="{StaticResource BarButton}" Content="Print…" Click="Print_Click" ToolTip="Print (Ctrl+P)"/>
+                    <Button Style="{StaticResource BarButton}" Content="{local:Loc Print}" Click="Print_Click" ToolTip="{local:Loc PrintTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
-                    <Button Style="{StaticResource BarButton}" Content="⛶" Click="Fullscreen_Click" ToolTip="Full screen (F11)"/>
+                    <Button Style="{StaticResource BarButton}" Content="⛶" Click="Fullscreen_Click" ToolTip="{local:Loc FullscreenTooltip}"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
         <Grid>
+            <!-- NoMirror: the scroll frame and its rendered pages must never mirror. -->
             <ScrollViewer x:Name="Scroller"
+                          Style="{StaticResource NoMirror}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto"
                           ScrollChanged="Scroller_ScrollChanged"
@@ -128,7 +134,7 @@
             </ScrollViewer>
 
             <TextBlock x:Name="EmptyHint"
-                       Text="Open a PDF  (Ctrl+O)  —  or drop a file here"
+                       Text="{local:Loc EmptyHint}"
                        Foreground="#FF9A9A9A" FontSize="16"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>

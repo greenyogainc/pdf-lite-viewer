@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve"><value>PDF Lite Viewer</value></data>
+  <data name="MainWindowTitleFormat" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="Open" xml:space="preserve"><value>열기…</value></data>
+  <data name="OpenTooltip" xml:space="preserve"><value>PDF 열기 (Ctrl+O)</value></data>
+  <data name="Facing" xml:space="preserve"><value>마주보기</value></data>
+  <data name="FacingTooltip" xml:space="preserve"><value>마주보는 페이지 (2)</value></data>
+  <data name="Single" xml:space="preserve"><value>단일</value></data>
+  <data name="SingleTooltip" xml:space="preserve"><value>단일 페이지 (1) — F11 키로 전체 화면</value></data>
+  <data name="Scroll" xml:space="preserve"><value>스크롤</value></data>
+  <data name="ScrollTooltip" xml:space="preserve"><value>연속 스크롤 (3)</value></data>
+  <data name="PrevPageTooltip" xml:space="preserve"><value>이전 페이지 (Page Up)</value></data>
+  <data name="NextPageTooltip" xml:space="preserve"><value>다음 페이지 (Page Down)</value></data>
+  <data name="ZoomOutTooltip" xml:space="preserve"><value>축소 (Ctrl+-)</value></data>
+  <data name="ZoomInTooltip" xml:space="preserve"><value>확대 (Ctrl++)</value></data>
+  <data name="Fit" xml:space="preserve"><value>맞춤</value></data>
+  <data name="FitTooltip" xml:space="preserve"><value>페이지 너비에 맞추기 (Ctrl+0)</value></data>
+  <data name="Print" xml:space="preserve"><value>인쇄…</value></data>
+  <data name="PrintTooltip" xml:space="preserve"><value>인쇄 (Ctrl+P)</value></data>
+  <data name="FullscreenTooltip" xml:space="preserve"><value>전체 화면 (F11)</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>PDF 열기  (Ctrl+O)  —  또는 파일을 여기로 끌어다 놓으세요</value></data>
+  <data name="PageCountFormat" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="OpenFileDialogFilter" xml:space="preserve"><value>PDF 파일 (*.pdf)|*.pdf</value></data>
+  <data name="OpenFileDialogTitle" xml:space="preserve"><value>PDF 열기</value></data>
+  <data name="OpenFileErrorMessage" xml:space="preserve"><value>"{0}"을(를) 열 수 없습니다.
+
+{1}</value></data>
+  <data name="PrintPreviewFailedMessage" xml:space="preserve"><value>인쇄 미리 보기에 실패했습니다.
+
+{0}</value></data>
+  <data name="PrintingFailedMessage" xml:space="preserve"><value>인쇄에 실패했습니다.
+
+{0}</value></data>
+  <data name="UnhandledErrorMessage" xml:space="preserve"><value>예기치 않은 오류:
+
+{0}
+
+자세한 내용은 다음 위치에 기록되었습니다:
+{1}</value></data>
+  <data name="PrintWindowTitleFormat" xml:space="preserve"><value>인쇄 — {0}</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>페이지:</value></data>
+  <data name="RangeAll" xml:space="preserve"><value>모든 페이지</value></data>
+  <data name="RangeCurrent" xml:space="preserve"><value>현재 페이지</value></data>
+  <data name="RangeCustom" xml:space="preserve"><value>사용자 지정</value></data>
+  <data name="RangeBoxTooltip" xml:space="preserve"><value>예: 1-5, 8, 11-13</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>프린터:</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>매수:</value></data>
+  <data name="BwCheckbox" xml:space="preserve"><value>흑백</value></data>
+  <data name="BwCheckboxTooltip" xml:space="preserve"><value>흑백으로 인쇄 (그레이스케일)</value></data>
+  <data name="DraftCheckbox" xml:space="preserve"><value>초안</value></data>
+  <data name="DraftCheckboxTooltip" xml:space="preserve"><value>초안 품질 — 더 빠르고 잉크 사용량이 적음</value></data>
+  <data name="PrintBtn" xml:space="preserve"><value>인쇄</value></data>
+  <data name="CancelBtn" xml:space="preserve"><value>취소</value></data>
+  <data name="NoPagesInRangeHint" xml:space="preserve"><value>범위에 페이지가 없습니다</value></data>
+  <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+</root>

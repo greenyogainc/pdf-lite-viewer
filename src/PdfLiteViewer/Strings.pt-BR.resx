@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve"><value>PDF Lite Viewer</value></data>
+  <data name="MainWindowTitleFormat" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="Open" xml:space="preserve"><value>Abrir…</value></data>
+  <data name="OpenTooltip" xml:space="preserve"><value>Abrir um PDF (Ctrl+O)</value></data>
+  <data name="Facing" xml:space="preserve"><value>Dupla</value></data>
+  <data name="FacingTooltip" xml:space="preserve"><value>Páginas duplas (2)</value></data>
+  <data name="Single" xml:space="preserve"><value>Única</value></data>
+  <data name="SingleTooltip" xml:space="preserve"><value>Página única (1) — pressione F11 para tela cheia</value></data>
+  <data name="Scroll" xml:space="preserve"><value>Contínuo</value></data>
+  <data name="ScrollTooltip" xml:space="preserve"><value>Rolagem contínua (3)</value></data>
+  <data name="PrevPageTooltip" xml:space="preserve"><value>Página anterior (Page Up)</value></data>
+  <data name="NextPageTooltip" xml:space="preserve"><value>Próxima página (Page Down)</value></data>
+  <data name="ZoomOutTooltip" xml:space="preserve"><value>Reduzir (Ctrl+-)</value></data>
+  <data name="ZoomInTooltip" xml:space="preserve"><value>Ampliar (Ctrl++)</value></data>
+  <data name="Fit" xml:space="preserve"><value>Ajustar</value></data>
+  <data name="FitTooltip" xml:space="preserve"><value>Ajustar à largura da página (Ctrl+0)</value></data>
+  <data name="Print" xml:space="preserve"><value>Imprimir…</value></data>
+  <data name="PrintTooltip" xml:space="preserve"><value>Imprimir (Ctrl+P)</value></data>
+  <data name="FullscreenTooltip" xml:space="preserve"><value>Tela cheia (F11)</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>Abra um PDF  (Ctrl+O)  —  ou solte um arquivo aqui</value></data>
+  <data name="PageCountFormat" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="OpenFileDialogFilter" xml:space="preserve"><value>Arquivos PDF (*.pdf)|*.pdf</value></data>
+  <data name="OpenFileDialogTitle" xml:space="preserve"><value>Abrir PDF</value></data>
+  <data name="OpenFileErrorMessage" xml:space="preserve"><value>Não foi possível abrir "{0}".
+
+{1}</value></data>
+  <data name="PrintPreviewFailedMessage" xml:space="preserve"><value>Falha na visualização de impressão.
+
+{0}</value></data>
+  <data name="PrintingFailedMessage" xml:space="preserve"><value>Falha na impressão.
+
+{0}</value></data>
+  <data name="UnhandledErrorMessage" xml:space="preserve"><value>Erro inesperado:
+
+{0}
+
+Detalhes registrados em:
+{1}</value></data>
+  <data name="PrintWindowTitleFormat" xml:space="preserve"><value>Imprimir — {0}</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>Páginas:</value></data>
+  <data name="RangeAll" xml:space="preserve"><value>Todas as páginas</value></data>
+  <data name="RangeCurrent" xml:space="preserve"><value>Página atual</value></data>
+  <data name="RangeCustom" xml:space="preserve"><value>Personalizado</value></data>
+  <data name="RangeBoxTooltip" xml:space="preserve"><value>ex.: 1-5, 8, 11-13</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>Impressora:</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>Cópias:</value></data>
+  <data name="BwCheckbox" xml:space="preserve"><value>P/B</value></data>
+  <data name="BwCheckboxTooltip" xml:space="preserve"><value>Imprimir em preto e branco (escala de cinza)</value></data>
+  <data name="DraftCheckbox" xml:space="preserve"><value>Rascunho</value></data>
+  <data name="DraftCheckboxTooltip" xml:space="preserve"><value>Qualidade rascunho — mais rápido, usa menos tinta</value></data>
+  <data name="PrintBtn" xml:space="preserve"><value>Imprimir</value></data>
+  <data name="CancelBtn" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="NoPagesInRangeHint" xml:space="preserve"><value>Nenhuma página no intervalo</value></data>
+  <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+</root>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve"><value>PDF Lite Viewer</value></data>
+  <data name="MainWindowTitleFormat" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="Open" xml:space="preserve"><value>打开…</value></data>
+  <data name="OpenTooltip" xml:space="preserve"><value>打开 PDF (Ctrl+O)</value></data>
+  <data name="Facing" xml:space="preserve"><value>双页</value></data>
+  <data name="FacingTooltip" xml:space="preserve"><value>双页对照 (2)</value></data>
+  <data name="Single" xml:space="preserve"><value>单页</value></data>
+  <data name="SingleTooltip" xml:space="preserve"><value>单页 (1) — 按 F11 全屏</value></data>
+  <data name="Scroll" xml:space="preserve"><value>滚动</value></data>
+  <data name="ScrollTooltip" xml:space="preserve"><value>连续滚动 (3)</value></data>
+  <data name="PrevPageTooltip" xml:space="preserve"><value>上一页 (Page Up)</value></data>
+  <data name="NextPageTooltip" xml:space="preserve"><value>下一页 (Page Down)</value></data>
+  <data name="ZoomOutTooltip" xml:space="preserve"><value>缩小 (Ctrl+-)</value></data>
+  <data name="ZoomInTooltip" xml:space="preserve"><value>放大 (Ctrl++)</value></data>
+  <data name="Fit" xml:space="preserve"><value>适应</value></data>
+  <data name="FitTooltip" xml:space="preserve"><value>适应页面宽度 (Ctrl+0)</value></data>
+  <data name="Print" xml:space="preserve"><value>打印…</value></data>
+  <data name="PrintTooltip" xml:space="preserve"><value>打印 (Ctrl+P)</value></data>
+  <data name="FullscreenTooltip" xml:space="preserve"><value>全屏 (F11)</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>打开 PDF  (Ctrl+O)  — 或将文件拖到此处</value></data>
+  <data name="PageCountFormat" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="OpenFileDialogFilter" xml:space="preserve"><value>PDF 文件 (*.pdf)|*.pdf</value></data>
+  <data name="OpenFileDialogTitle" xml:space="preserve"><value>打开 PDF</value></data>
+  <data name="OpenFileErrorMessage" xml:space="preserve"><value>无法打开"{0}"。
+
+{1}</value></data>
+  <data name="PrintPreviewFailedMessage" xml:space="preserve"><value>打印预览失败。
+
+{0}</value></data>
+  <data name="PrintingFailedMessage" xml:space="preserve"><value>打印失败。
+
+{0}</value></data>
+  <data name="UnhandledErrorMessage" xml:space="preserve"><value>意外错误:
+
+{0}
+
+详细信息已记录到:
+{1}</value></data>
+  <data name="PrintWindowTitleFormat" xml:space="preserve"><value>打印 — {0}</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>页面:</value></data>
+  <data name="RangeAll" xml:space="preserve"><value>所有页面</value></data>
+  <data name="RangeCurrent" xml:space="preserve"><value>当前页面</value></data>
+  <data name="RangeCustom" xml:space="preserve"><value>自定义</value></data>
+  <data name="RangeBoxTooltip" xml:space="preserve"><value>例如 1-5, 8, 11-13</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>打印机:</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>份数:</value></data>
+  <data name="BwCheckbox" xml:space="preserve"><value>黑白</value></data>
+  <data name="BwCheckboxTooltip" xml:space="preserve"><value>以黑白方式打印 (灰度)</value></data>
+  <data name="DraftCheckbox" xml:space="preserve"><value>草稿</value></data>
+  <data name="DraftCheckboxTooltip" xml:space="preserve"><value>草稿质量 — 更快，墨水用量更少</value></data>
+  <data name="PrintBtn" xml:space="preserve"><value>打印</value></data>
+  <data name="CancelBtn" xml:space="preserve"><value>取消</value></data>
+  <data name="NoPagesInRangeHint" xml:space="preserve"><value>范围内没有页面</value></data>
+  <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+</root>

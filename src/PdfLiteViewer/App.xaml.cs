@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows;
 
 namespace PdfLiteViewer;
@@ -10,15 +12,27 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        if (e.Args.Length > 0 && File.Exists(e.Args[0]))
-            StartupFile = e.Args[0];
+        foreach (var arg in e.Args)
+        {
+            // Hidden override for support/screenshots — forces UI culture regardless of OS language.
+            if (arg.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    Thread.CurrentThread.CurrentUICulture = new CultureInfo(arg["--lang=".Length..]);
+                }
+                catch (CultureNotFoundException) { }
+            }
+            else if (StartupFile is null && File.Exists(arg))
+            {
+                StartupFile = arg;
+            }
+        }
 
         DispatcherUnhandledException += (_, args) =>
         {
             LogError(args.Exception);
-            MessageBox.Show(
-                $"Unexpected error:\n\n{args.Exception.Message}\n\nDetails logged to:\n{LogPath}",
-                "PDF Lite Viewer", MessageBoxButton.OK, MessageBoxImage.Error);
+            Strings.ShowError(null, string.Format(Strings.Get("UnhandledErrorMessage"), args.Exception.Message, LogPath));
             args.Handled = true;   // keep the viewer alive
         };
 

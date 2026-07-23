@@ -4,6 +4,11 @@
              xmlns:local="clr-namespace:PdfLiteViewer"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <!-- Opt an element (and its subtree) out of the window's RTL mirroring. Applied to
+             the nav-arrow clusters, the page/scroll surfaces, and the numeric entry fields —
+             directional glyphs, rendered pages, and Western-digit input must never mirror. -->
+        <Style x:Key="NoMirror" TargetType="{x:Type FrameworkElement}">
+            <Setter Property="FlowDirection" Value="LeftToRight"/>
+        </Style>
     </Application.Resources>
 </Application>

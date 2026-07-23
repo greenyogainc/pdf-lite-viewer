@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve"><value>PDF Lite Viewer</value></data>
+  <data name="MainWindowTitleFormat" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="Open" xml:space="preserve"><value>Apri…</value></data>
+  <data name="OpenTooltip" xml:space="preserve"><value>Apri un PDF (Ctrl+O)</value></data>
+  <data name="Facing" xml:space="preserve"><value>Doppia</value></data>
+  <data name="FacingTooltip" xml:space="preserve"><value>Pagine affiancate (2)</value></data>
+  <data name="Single" xml:space="preserve"><value>Singola</value></data>
+  <data name="SingleTooltip" xml:space="preserve"><value>Pagina singola (1) — premi F11 per lo schermo intero</value></data>
+  <data name="Scroll" xml:space="preserve"><value>Scorri</value></data>
+  <data name="ScrollTooltip" xml:space="preserve"><value>Scorrimento continuo (3)</value></data>
+  <data name="PrevPageTooltip" xml:space="preserve"><value>Pagina precedente (Pagina su)</value></data>
+  <data name="NextPageTooltip" xml:space="preserve"><value>Pagina successiva (Pagina giù)</value></data>
+  <data name="ZoomOutTooltip" xml:space="preserve"><value>Riduci (Ctrl+-)</value></data>
+  <data name="ZoomInTooltip" xml:space="preserve"><value>Ingrandisci (Ctrl++)</value></data>
+  <data name="Fit" xml:space="preserve"><value>Adatta</value></data>
+  <data name="FitTooltip" xml:space="preserve"><value>Adatta alla larghezza pagina (Ctrl+0)</value></data>
+  <data name="Print" xml:space="preserve"><value>Stampa…</value></data>
+  <data name="PrintTooltip" xml:space="preserve"><value>Stampa (Ctrl+P)</value></data>
+  <data name="FullscreenTooltip" xml:space="preserve"><value>Schermo intero (F11)</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>Apri un PDF  (Ctrl+O)  —  oppure trascina qui un file</value></data>
+  <data name="PageCountFormat" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="OpenFileDialogFilter" xml:space="preserve"><value>File PDF (*.pdf)|*.pdf</value></data>
+  <data name="OpenFileDialogTitle" xml:space="preserve"><value>Apri PDF</value></data>
+  <data name="OpenFileErrorMessage" xml:space="preserve"><value>Impossibile aprire "{0}".
+
+{1}</value></data>
+  <data name="PrintPreviewFailedMessage" xml:space="preserve"><value>Anteprima di stampa non riuscita.
+
+{0}</value></data>
+  <data name="PrintingFailedMessage" xml:space="preserve"><value>Stampa non riuscita.
+
+{0}</value></data>
+  <data name="UnhandledErrorMessage" xml:space="preserve"><value>Errore imprevisto:
+
+{0}
+
+Dettagli registrati in:
+{1}</value></data>
+  <data name="PrintWindowTitleFormat" xml:space="preserve"><value>Stampa — {0}</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>Pagine:</value></data>
+  <data name="RangeAll" xml:space="preserve"><value>Tutte le pagine</value></data>
+  <data name="RangeCurrent" xml:space="preserve"><value>Pagina corrente</value></data>
+  <data name="RangeCustom" xml:space="preserve"><value>Personalizzato</value></data>
+  <data name="RangeBoxTooltip" xml:space="preserve"><value>es. 1-5, 8, 11-13</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>Stampante:</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>Copie:</value></data>
+  <data name="BwCheckbox" xml:space="preserve"><value>B/N</value></data>
+  <data name="BwCheckboxTooltip" xml:space="preserve"><value>Stampa in bianco e nero (scala di grigi)</value></data>
+  <data name="DraftCheckbox" xml:space="preserve"><value>Bozza</value></data>
+  <data name="DraftCheckboxTooltip" xml:space="preserve"><value>Qualità bozza — più veloce, usa meno inchiostro</value></data>
+  <data name="PrintBtn" xml:space="preserve"><value>Stampa</value></data>
+  <data name="CancelBtn" xml:space="preserve"><value>Annulla</value></data>
+  <data name="NoPagesInRangeHint" xml:space="preserve"><value>Nessuna pagina nell'intervallo</value></data>
+  <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+</root>

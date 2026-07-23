@@ -26,6 +26,9 @@ $outDir = Join-Path $PSScriptRoot "out"
 $stage = Join-Path $outDir "layout-$Rid"
 
 Write-Host "== Publishing ($Configuration / $Rid) ==" -ForegroundColor Cyan
+# Clean the stage first — publish reuses this dir, and makeappx packs it wholesale, so
+# a language/DLL removed in a later build would otherwise linger and ship stale.
+if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 dotnet publish $proj -c $Configuration -r $Rid --self-contained true `
     -p:PublishSingleFile=false -o $stage
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
@@ -34,6 +37,9 @@ Write-Host "== Staging manifest and assets ==" -ForegroundColor Cyan
 $manifestPath = Join-Path $stage "AppxManifest.xml"
 Copy-Item (Join-Path $PSScriptRoot "Package.appxmanifest") $manifestPath -Force
 Copy-Item (Join-Path $PSScriptRoot "Assets") $stage -Recurse -Force
+
+# Debug symbols are dead weight in a Store submission.
+Get-ChildItem $stage -Filter *.pdb -Recurse | Remove-Item -Force
 
 # Stamp the CPU architecture into the package identity — without this, every
 # architecture produces the same full name (..._Neutral_) and the Store

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve"><value>PDF Lite Viewer</value></data>
+  <data name="MainWindowTitleFormat" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="Open" xml:space="preserve"><value>Открыть…</value></data>
+  <data name="OpenTooltip" xml:space="preserve"><value>Открыть PDF (Ctrl+O)</value></data>
+  <data name="Facing" xml:space="preserve"><value>Разворот</value></data>
+  <data name="FacingTooltip" xml:space="preserve"><value>Разворот страниц (2)</value></data>
+  <data name="Single" xml:space="preserve"><value>Одна</value></data>
+  <data name="SingleTooltip" xml:space="preserve"><value>Одна страница (1) — F11 для полноэкранного режима</value></data>
+  <data name="Scroll" xml:space="preserve"><value>Прокрутка</value></data>
+  <data name="ScrollTooltip" xml:space="preserve"><value>Непрерывная прокрутка (3)</value></data>
+  <data name="PrevPageTooltip" xml:space="preserve"><value>Предыдущая страница (Page Up)</value></data>
+  <data name="NextPageTooltip" xml:space="preserve"><value>Следующая страница (Page Down)</value></data>
+  <data name="ZoomOutTooltip" xml:space="preserve"><value>Уменьшить (Ctrl+-)</value></data>
+  <data name="ZoomInTooltip" xml:space="preserve"><value>Увеличить (Ctrl++)</value></data>
+  <data name="Fit" xml:space="preserve"><value>По ширине</value></data>
+  <data name="FitTooltip" xml:space="preserve"><value>По ширине страницы (Ctrl+0)</value></data>
+  <data name="Print" xml:space="preserve"><value>Печать…</value></data>
+  <data name="PrintTooltip" xml:space="preserve"><value>Печать (Ctrl+P)</value></data>
+  <data name="FullscreenTooltip" xml:space="preserve"><value>Полноэкранный режим (F11)</value></data>
+  <data name="EmptyHint" xml:space="preserve"><value>Откройте PDF (Ctrl+O)  —  или перетащите файл сюда</value></data>
+  <data name="PageCountFormat" xml:space="preserve"><value>/ {0}</value></data>
+  <data name="OpenFileDialogFilter" xml:space="preserve"><value>Файлы PDF (*.pdf)|*.pdf</value></data>
+  <data name="OpenFileDialogTitle" xml:space="preserve"><value>Открыть PDF</value></data>
+  <data name="OpenFileErrorMessage" xml:space="preserve"><value>Не удалось открыть «{0}».
+
+{1}</value></data>
+  <data name="PrintPreviewFailedMessage" xml:space="preserve"><value>Не удалось выполнить предварительный просмотр печати.
+
+{0}</value></data>
+  <data name="PrintingFailedMessage" xml:space="preserve"><value>Не удалось выполнить печать.
+
+{0}</value></data>
+  <data name="UnhandledErrorMessage" xml:space="preserve"><value>Непредвиденная ошибка:
+
+{0}
+
+Подробности записаны в:
+{1}</value></data>
+  <data name="PrintWindowTitleFormat" xml:space="preserve"><value>Печать — {0}</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>Страницы:</value></data>
+  <data name="RangeAll" xml:space="preserve"><value>Все страницы</value></data>
+  <data name="RangeCurrent" xml:space="preserve"><value>Текущая страница</value></data>
+  <data name="RangeCustom" xml:space="preserve"><value>Особый</value></data>
+  <data name="RangeBoxTooltip" xml:space="preserve"><value>например 1-5, 8, 11-13</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>Принтер:</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>Копии:</value></data>
+  <data name="BwCheckbox" xml:space="preserve"><value>Ч/Б</value></data>
+  <data name="BwCheckboxTooltip" xml:space="preserve"><value>Печать в чёрно-белом режиме (оттенки серого)</value></data>
+  <data name="DraftCheckbox" xml:space="preserve"><value>Черновик</value></data>
+  <data name="DraftCheckboxTooltip" xml:space="preserve"><value>Качество черновика — быстрее, расходует меньше чернил</value></data>
+  <data name="PrintBtn" xml:space="preserve"><value>Печать</value></data>
+  <data name="CancelBtn" xml:space="preserve"><value>Отмена</value></data>
+  <data name="NoPagesInRangeHint" xml:space="preserve"><value>В диапазоне нет страниц</value></data>
+  <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+</root>

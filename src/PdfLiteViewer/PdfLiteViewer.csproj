@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>PdfLiteViewer</AssemblyName>
     <RootNamespace>PdfLiteViewer</RootNamespace>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>Green Yoga Inc</Authors>
     <Company>Green Yoga Inc</Company>
     <Product>PDF Lite Viewer</Product>
@@ -16,6 +16,7 @@
     <Copyright>Copyright © 2026 Green Yoga Inc — released as freeware (MIT License)</Copyright>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en;es;fr;de;it;pt;pt-BR;ja;ko;zh-Hans;zh-Hant;ru;uk;ar</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
