@@ -73,5 +73,4 @@ Details logged to:
   <data name="NoChapters" xml:space="preserve"><value>This PDF has no chapters.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>Untitled chapter</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>Chapters could not be loaded.</value></data>
-  <data name="ChaptersNoDocument" xml:space="preserve"><value>Open a PDF to see chapters.</value></data>
 </root>

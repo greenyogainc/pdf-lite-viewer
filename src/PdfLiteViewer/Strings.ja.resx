@@ -73,5 +73,4 @@
   <data name="NoChapters" xml:space="preserve"><value>このPDFには章がありません。</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>無題の章</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>章を読み込めませんでした。</value></data>
-  <data name="ChaptersNoDocument" xml:space="preserve"><value>章を表示するには PDF を開いてください。</value></data>
 </root>

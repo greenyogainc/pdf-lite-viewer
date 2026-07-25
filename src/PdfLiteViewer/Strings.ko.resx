@@ -73,5 +73,4 @@
   <data name="NoChapters" xml:space="preserve"><value>이 PDF에는 장이 없습니다.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>제목 없는 장</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>장을 불러올 수 없습니다.</value></data>
-  <data name="ChaptersNoDocument" xml:space="preserve"><value>장을 보려면 PDF를 여세요.</value></data>
 </root>

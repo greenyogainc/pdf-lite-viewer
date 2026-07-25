@@ -73,5 +73,4 @@ Details protokolliert unter:
   <data name="NoChapters" xml:space="preserve"><value>Dieses PDF enthält keine Kapitel.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>Unbenanntes Kapitel</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>Kapitel konnten nicht geladen werden.</value></data>
-  <data name="ChaptersNoDocument" xml:space="preserve"><value>Öffnen Sie ein PDF, um Kapitel anzuzeigen.</value></data>
 </root>

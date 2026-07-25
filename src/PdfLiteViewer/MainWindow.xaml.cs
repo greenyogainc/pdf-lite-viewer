@@ -33,7 +33,7 @@ public partial class MainWindow : Window
 
     // Chapter sidebar state. The loaded tree is cached per PdfDoc; switching documents
     // cancels any in-flight load and invalidates the previous document's chapters.
-    private enum ChapterLoadState { NotLoaded, Loading, Loaded, Empty, NoDocument, Failed }
+    private enum ChapterLoadState { NotLoaded, Loading, Loaded, Empty, Failed }
 
     private bool _chapterPaneVisible;
     private bool _preFsChapterVisible;
@@ -398,7 +398,7 @@ public partial class MainWindow : Window
     {
         if (_doc is null)
         {
-            _chapterState = ChapterLoadState.NoDocument;
+            _chapterState = ChapterLoadState.Empty;
             ShowChapterState(_chapterState);
             return;
         }
@@ -445,7 +445,10 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Flattened navigable nodes in (PageIndex, SourceOrder) order for O(log n) lookups.</summary>
+    /// <summary>
+    /// Flattened navigable nodes sorted by (PageIndex, Depth, SourceOrder) so a binary
+    /// search for the last entry with PageIndex &lt;= page yields the deepest/later node.
+    /// </summary>
     private static List<ChapterItem> FlattenNavigable(List<ChapterItem> roots)
     {
         var list = new List<ChapterItem>();
@@ -465,7 +468,9 @@ public partial class MainWindow : Window
         list.Sort((a, b) =>
         {
             int byPage = a.PageIndex!.Value.CompareTo(b.PageIndex!.Value);
-            return byPage != 0 ? byPage : a.SourceOrder.CompareTo(b.SourceOrder);
+            if (byPage != 0) return byPage;
+            int byDepth = a.Depth.CompareTo(b.Depth);
+            return byDepth != 0 ? byDepth : a.SourceOrder.CompareTo(b.SourceOrder);
         });
         return list;
     }
@@ -474,19 +479,8 @@ public partial class MainWindow : Window
     {
         ChapterTree.Visibility = state == ChapterLoadState.Loaded ? Visibility.Visible : Visibility.Collapsed;
         ChapterLoadingText.Visibility = state == ChapterLoadState.Loading ? Visibility.Visible : Visibility.Collapsed;
+        ChapterEmptyText.Visibility = state == ChapterLoadState.Empty ? Visibility.Visible : Visibility.Collapsed;
         ChapterFailedText.Visibility = state == ChapterLoadState.Failed ? Visibility.Visible : Visibility.Collapsed;
-
-        if (state is ChapterLoadState.Empty or ChapterLoadState.NoDocument)
-        {
-            ChapterEmptyText.Text = state == ChapterLoadState.NoDocument
-                ? Strings.Get("ChaptersNoDocument")
-                : Strings.Get("NoChapters");
-            ChapterEmptyText.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            ChapterEmptyText.Visibility = Visibility.Collapsed;
-        }
     }
 
     /// <summary>
@@ -506,10 +500,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// The active chapter is an outline node with the greatest PageIndex &lt;= the sync page.
-    /// Among same-page siblings, an existing user/programmatic selection on that page is kept
-    /// (so tree clicks don't flash to a later SourceOrder sibling); otherwise the latest
-    /// SourceOrder wins. Facing mode uses <see cref="GetChapterSyncPage"/>.
+    /// The active chapter is the deepest/later outline node with the greatest
+    /// PageIndex &lt;= the sync page. Among same-page candidates, an existing selection
+    /// on that page is kept so tree clicks don't flash away; otherwise Depth then
+    /// SourceOrder win. Facing mode uses <see cref="GetChapterSyncPage"/>.
     /// </summary>
     private void SyncChapterSelection()
     {
@@ -518,7 +512,7 @@ public partial class MainWindow : Window
         int syncPage = GetChapterSyncPage();
 
         // Binary search: last entry with PageIndex <= syncPage (list is sorted by
-        // PageIndex, ties ordered by SourceOrder — default "greatest page, latest node").
+        // PageIndex, Depth, SourceOrder — "greatest page, deepest/later node").
         int lo = 0, hi = _navigableChapters.Count - 1, best = -1;
         while (lo <= hi)
         {

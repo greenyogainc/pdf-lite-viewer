@@ -73,5 +73,4 @@
   <data name="NoChapters" xml:space="preserve"><value>此 PDF 沒有章節。</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>無標題章節</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>無法載入章節。</value></data>
-  <data name="ChaptersNoDocument" xml:space="preserve"><value>開啟 PDF 以查看章節。</value></data>
 </root>
