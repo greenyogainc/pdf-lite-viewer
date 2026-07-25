@@ -73,4 +73,5 @@ Dettagli registrati in:
   <data name="NoChapters" xml:space="preserve"><value>Questo PDF non contiene capitoli.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>Capitolo senza titolo</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>Impossibile caricare i capitoli.</value></data>
+  <data name="ChaptersNoDocument" xml:space="preserve"><value>Apri un PDF per vedere i capitoli.</value></data>
 </root>

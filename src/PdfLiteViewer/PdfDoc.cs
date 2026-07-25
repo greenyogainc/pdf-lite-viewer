@@ -16,6 +16,9 @@ public sealed class PdfDoc
     private static readonly SemaphoreSlim RenderLock = new(1, 1);
 
     private readonly byte[] _bytes;
+    private readonly object _chaptersGate = new();
+    private List<ChapterItem>? _chaptersCache;
+    private bool _chaptersCacheEmpty;
 
     public string FilePath { get; }
     public int PageCount { get; }
@@ -95,15 +98,28 @@ public sealed class PdfDoc
     /// </param>
     public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
     {
+        lock (_chaptersGate)
+        {
+            if (_chaptersCache is not null)
+                return _chaptersCache;
+            if (_chaptersCacheEmpty)
+                return new List<ChapterItem>();
+        }
+
         ct.ThrowIfCancellationRequested();
 
-        using var pdf = PdfDocument.Open(_bytes);
+        // SkipMissingFonts: outline extraction never needs glyph data; avoids font-parse
+        // work PdfPig would otherwise do while opening large documents.
+        using var pdf = PdfDocument.Open(_bytes, new ParsingOptions { SkipMissingFonts = true });
 
         ct.ThrowIfCancellationRequested();
 
         var roots = new List<ChapterItem>();
         if (!pdf.TryGetBookmarks(out var bookmarks, allowContainerNode: true))
+        {
+            lock (_chaptersGate) { _chaptersCacheEmpty = true; }
             return roots;
+        }
 
         ct.ThrowIfCancellationRequested();
 
@@ -111,6 +127,8 @@ public sealed class PdfDoc
         MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, ct, untitledFallback);
 
         ct.ThrowIfCancellationRequested();
+
+        lock (_chaptersGate) { _chaptersCache = roots; }
         return roots;
     }
 
@@ -149,12 +167,7 @@ public sealed class PdfDoc
             output.Add(item);
 
             if (node.Children is { Count: > 0 } children)
-            {
-                var childList = new List<ChapterItem>(children.Count);
-                MapBookmarks(children, item, depth + 1, childList, ref order, ct, untitledFallback);
-                foreach (var child in childList)
-                    item.Children.Add(child);
-            }
+                MapBookmarks(children, item, depth + 1, item.Children, ref order, ct, untitledFallback);
         }
     }
 

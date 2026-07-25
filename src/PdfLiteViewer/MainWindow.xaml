@@ -143,6 +143,14 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <!-- Virtualizing panel so large expanded outlines don't realize every child. -->
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TreeViewItem">
@@ -153,7 +161,7 @@
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition/>
+                                <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <ToggleButton x:Name="Expander" Style="{StaticResource ExpandToggle}"
                                           ClickMode="Press"
@@ -162,7 +170,9 @@
                                     Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
                                 <ContentPresenter x:Name="PART_Header" ContentSource="Header" HorizontalAlignment="Stretch"/>
                             </Border>
-                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Grid.Column="1"/>
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Grid.Column="1"
+                                            VirtualizingPanel.IsVirtualizing="True"
+                                            VirtualizingPanel.VirtualizationMode="Recycling"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="HasItems" Value="False">
@@ -254,12 +264,17 @@
                                   ItemContainerStyle="{StaticResource DarkTreeViewItem}"
                                   ItemTemplate="{StaticResource ChapterTemplate}"
                                   SelectedItemChanged="ChapterTree_SelectedItemChanged"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  VirtualizingStackPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.ScrollUnit="Item"
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                   Visibility="Collapsed"/>
                         <TextBlock x:Name="ChapterLoadingText" Text="{local:Loc LoadingChapters}"
                                    Foreground="#FF9A9A9A" FontSize="13" Margin="8,4"
                                    TextWrapping="Wrap" Visibility="Collapsed"/>
-                        <TextBlock x:Name="ChapterEmptyText" Text="{local:Loc NoChapters}"
+                        <TextBlock x:Name="ChapterEmptyText"
                                    Foreground="#FF9A9A9A" FontSize="13" Margin="8,4"
                                    TextWrapping="Wrap" Visibility="Collapsed"/>
                         <TextBlock x:Name="ChapterFailedText" Text="{local:Loc ChapterLoadFailed}"

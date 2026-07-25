@@ -1,11 +1,12 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 
 namespace PdfLiteViewer;
 
 /// <summary>One node in the chapter tree, mapped 1:1 from a PDF outline/bookmark node.
 /// <see cref="PageIndex"/> is set only for internal destinations of the current document;
-/// container, URI, external-file, and embedded-file nodes stay in the tree but do not navigate.</summary>
+/// container, URI, external-file, and embedded-file nodes stay in the tree but do not navigate.
+/// Children is a plain list — the outline is immutable after load (avoids ObservableCollection
+/// overhead on large bookmarks trees).</summary>
 public sealed class ChapterItem : INotifyPropertyChanged
 {
     private bool _isExpanded;
@@ -16,7 +17,7 @@ public sealed class ChapterItem : INotifyPropertyChanged
     /// <summary>0-based target page, or null when this node has no navigable in-document destination.</summary>
     public int? PageIndex { get; init; }
 
-    public ObservableCollection<ChapterItem> Children { get; } = new();
+    public List<ChapterItem> Children { get; } = new();
 
     public ChapterItem? Parent { get; set; }
 

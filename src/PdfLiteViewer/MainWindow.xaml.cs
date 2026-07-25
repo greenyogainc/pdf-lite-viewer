@@ -33,7 +33,7 @@ public partial class MainWindow : Window
 
     // Chapter sidebar state. The loaded tree is cached per PdfDoc; switching documents
     // cancels any in-flight load and invalidates the previous document's chapters.
-    private enum ChapterLoadState { NotLoaded, Loading, Loaded, Empty, Failed }
+    private enum ChapterLoadState { NotLoaded, Loading, Loaded, Empty, NoDocument, Failed }
 
     private bool _chapterPaneVisible;
     private bool _preFsChapterVisible;
@@ -278,7 +278,7 @@ public partial class MainWindow : Window
 
     // ---------- Navigation ----------
 
-    private void GoToPage(int page, bool scroll = true)
+    private void GoToPage(int page, bool scroll = true, bool syncChapters = true)
     {
         if (_doc is null) return;
         page = Math.Clamp(page, 0, _doc.PageCount - 1);
@@ -291,12 +291,17 @@ public partial class MainWindow : Window
         }
         else
         {
-            if (page == _currentPage && _items.Count > 0) return;
+            if (page == _currentPage && _items.Count > 0)
+            {
+                if (syncChapters) SyncChapterSelection();
+                return;
+            }
             _currentPage = page;
             RebuildItems();
         }
 
-        SyncChapterSelection();
+        if (syncChapters)
+            SyncChapterSelection();
     }
 
     private void StepPage(int direction)
@@ -393,7 +398,7 @@ public partial class MainWindow : Window
     {
         if (_doc is null)
         {
-            _chapterState = ChapterLoadState.Empty;
+            _chapterState = ChapterLoadState.NoDocument;
             ShowChapterState(_chapterState);
             return;
         }
@@ -469,32 +474,73 @@ public partial class MainWindow : Window
     {
         ChapterTree.Visibility = state == ChapterLoadState.Loaded ? Visibility.Visible : Visibility.Collapsed;
         ChapterLoadingText.Visibility = state == ChapterLoadState.Loading ? Visibility.Visible : Visibility.Collapsed;
-        ChapterEmptyText.Visibility = state == ChapterLoadState.Empty ? Visibility.Visible : Visibility.Collapsed;
         ChapterFailedText.Visibility = state == ChapterLoadState.Failed ? Visibility.Visible : Visibility.Collapsed;
+
+        if (state is ChapterLoadState.Empty or ChapterLoadState.NoDocument)
+        {
+            ChapterEmptyText.Text = state == ChapterLoadState.NoDocument
+                ? Strings.Get("ChaptersNoDocument")
+                : Strings.Get("NoChapters");
+            ChapterEmptyText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ChapterEmptyText.Visibility = Visibility.Collapsed;
+        }
     }
 
     /// <summary>
-    /// The active chapter is the latest outline node (by SourceOrder) with the greatest
-    /// PageIndex &lt;= the current page. Keeps the tree selection following every
-    /// page-navigation route without rescanning the whole tree.
+    /// Page index used for "current chapter" highlighting. In facing mode this is the
+    /// right-hand page of the visible spread (or the cover alone), so a bookmark on either
+    /// page of the spread can become active.
+    /// </summary>
+    private int GetChapterSyncPage()
+    {
+        if (_mode != ViewMode.Facing || _doc is null)
+            return _currentPage;
+
+        int start = FacingGroupStart(_currentPage);
+        if (start != 0 && start + 1 < _doc.PageCount)
+            return start + 1;
+        return start;
+    }
+
+    /// <summary>
+    /// The active chapter is an outline node with the greatest PageIndex &lt;= the sync page.
+    /// Among same-page siblings, an existing user/programmatic selection on that page is kept
+    /// (so tree clicks don't flash to a later SourceOrder sibling); otherwise the latest
+    /// SourceOrder wins. Facing mode uses <see cref="GetChapterSyncPage"/>.
     /// </summary>
     private void SyncChapterSelection()
     {
         if (_doc is null || _navigableChapters.Count == 0) return;
 
-        // Binary search: last entry with PageIndex <= _currentPage (list is sorted by
-        // PageIndex, ties ordered by SourceOrder — exactly "greatest page, latest node").
+        int syncPage = GetChapterSyncPage();
+
+        // Binary search: last entry with PageIndex <= syncPage (list is sorted by
+        // PageIndex, ties ordered by SourceOrder — default "greatest page, latest node").
         int lo = 0, hi = _navigableChapters.Count - 1, best = -1;
         while (lo <= hi)
         {
             int mid = (lo + hi) / 2;
-            if (_navigableChapters[mid].PageIndex!.Value <= _currentPage) { best = mid; lo = mid + 1; }
+            if (_navigableChapters[mid].PageIndex!.Value <= syncPage) { best = mid; lo = mid + 1; }
             else hi = mid - 1;
         }
         if (best < 0)
         {
             // Pages before the first bookmark have no active chapter — clear any stale highlight.
             ClearChapterSelection();
+            return;
+        }
+
+        int bestPage = _navigableChapters[best].PageIndex!.Value;
+
+        // Keep the current selection when it still targets this page band — preserves
+        // explicit tree clicks among same-page outline siblings.
+        if (_selectedChapter?.PageIndex == bestPage)
+        {
+            if (!_selectedChapter.IsSelected)
+                _selectedChapter.IsSelected = true;
             return;
         }
 
@@ -584,8 +630,10 @@ public partial class MainWindow : Window
 
         // Container, URI, external-file, and embedded-file nodes have no PageIndex:
         // selecting them only selects/expands — no URI or file is ever launched.
+        // Skip chapter sync so same-page siblings (and facing left-page picks) keep the
+        // node the user clicked instead of being overwritten by SourceOrder / right-page rules.
         if (item.PageIndex is int pageIndex)
-            GoToPage(pageIndex);
+            GoToPage(pageIndex, syncChapters: false);
     }
 
     // ---------- Printing ----------

@@ -73,4 +73,5 @@
   <data name="NoChapters" xml:space="preserve"><value>У цьому PDF немає розділів.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>Розділ без назви</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>Не вдалося завантажити розділи.</value></data>
+  <data name="ChaptersNoDocument" xml:space="preserve"><value>Відкрийте PDF, щоб побачити розділи.</value></data>
 </root>
