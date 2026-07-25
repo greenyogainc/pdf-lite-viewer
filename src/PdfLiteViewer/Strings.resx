@@ -66,4 +66,11 @@ Details logged to:
   <data name="CancelBtn" xml:space="preserve"><value>Cancel</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>No pages in range</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>Chapters</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>Show or hide document chapters (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>Close chapters</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>Loading chapters…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>This PDF has no chapters.</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>Untitled chapter</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>Chapters could not be loaded.</value></data>
 </root>

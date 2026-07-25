@@ -66,4 +66,11 @@
   <data name="CancelBtn" xml:space="preserve"><value>Скасувати</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>У діапазоні немає сторінок</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>Розділи</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>Показати або приховати розділи документа (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>Закрити розділи</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>Завантаження розділів…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>У цьому PDF немає розділів.</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>Розділ без назви</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>Не вдалося завантажити розділи.</value></data>
 </root>

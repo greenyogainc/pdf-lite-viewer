@@ -31,6 +31,20 @@ public partial class MainWindow : Window
     private WindowState _preFsState;
     private WindowStyle _preFsStyle;
 
+    // Chapter sidebar state. The loaded tree is cached per PdfDoc; switching documents
+    // cancels any in-flight load and invalidates the previous document's chapters.
+    private enum ChapterLoadState { NotLoaded, Loading, Loaded, Empty, Failed }
+
+    private bool _chapterPaneVisible;
+    private bool _preFsChapterVisible;
+    private GridLength _chapterPaneWidth = new(270);
+    private ChapterLoadState _chapterState = ChapterLoadState.NotLoaded;
+    private List<ChapterItem>? _chapterRoots;
+    private List<ChapterItem> _navigableChapters = new();   // flattened, sorted by (PageIndex, SourceOrder)
+    private ChapterItem? _selectedChapter;
+    private CancellationTokenSource _chapterCts = new();
+    private bool _suppressChapterNav;
+
     private readonly ItemsPanelTemplate _verticalPanel;
     private readonly ItemsPanelTemplate _horizontalPanel;
 
@@ -50,12 +64,15 @@ public partial class MainWindow : Window
         PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), 0);
 
         Loaded += MainWindow_Loaded;
-        SizeChanged += (_, _) =>
+        // Refit when the page viewport changes — window resize, chapter pane
+        // open/close, or splitter drag. Window.SizeChanged alone misses the
+        // in-window column redistributions from the chapter sidebar.
+        Scroller.SizeChanged += (_, _) =>
         {
             if (!_fitToView) return;
-            // The layout pass for this resize (e.g. maximize/fullscreen) hasn't
-            // completed yet, so Scroller.ViewportWidth/Height are still stale here.
-            // Defer until after layout settles so FitZoom() sees the real size.
+            // The layout pass for this resize hasn't completed yet, so
+            // ViewportWidth/Height can still be stale here. Defer until after
+            // layout settles so FitZoom() sees the real size.
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
         };
     }
@@ -103,6 +120,7 @@ public partial class MainWindow : Window
         _currentPage = 0;
         _fitToView = true;
         PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), _doc.PageCount);
+        ResetChapters();
         RebuildItems();
     }
 
@@ -277,6 +295,8 @@ public partial class MainWindow : Window
             _currentPage = page;
             RebuildItems();
         }
+
+        SyncChapterSelection();
     }
 
     private void StepPage(int direction)
@@ -310,6 +330,264 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------- Chapters ----------
+
+    private void ChapterToggle_Changed(object sender, RoutedEventArgs e) =>
+        SetChapterPaneVisible(ChapterToggle.IsChecked == true);
+
+    private void ChapterClose_Click(object sender, RoutedEventArgs e) => SetChapterPaneVisible(false);
+
+    private void SetChapterPaneVisible(bool visible)
+    {
+        if (_chapterPaneVisible == visible) return;
+        _chapterPaneVisible = visible;
+
+        // Keep the toggle's checked state an exact mirror of pane visibility.
+        if (ChapterToggle.IsChecked != visible)
+            ChapterToggle.IsChecked = visible;
+
+        if (visible)
+        {
+            ChapterColumn.MinWidth = 180;
+            ChapterColumn.Width = _chapterPaneWidth;
+            ChapterPane.Visibility = Visibility.Visible;
+            ChapterSplitter.Visibility = Visibility.Visible;
+
+            if (_chapterState == ChapterLoadState.NotLoaded)
+                BeginChapterLoad();
+            else
+                ShowChapterState(_chapterState);
+        }
+        else
+        {
+            // Closing the pane keeps the loaded tree; only the layout footprint goes away.
+            if (ChapterColumn.ActualWidth > 0)
+                _chapterPaneWidth = new GridLength(ChapterColumn.ActualWidth);
+            ChapterColumn.MinWidth = 0;
+            ChapterColumn.Width = new GridLength(0);
+            ChapterPane.Visibility = Visibility.Collapsed;
+            ChapterSplitter.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Drops the previous document's chapter state; reloads only if the pane is open.</summary>
+    private void ResetChapters()
+    {
+        _chapterCts.Cancel();
+        _chapterCts.Dispose();
+        _chapterCts = new CancellationTokenSource();
+
+        _chapterRoots = null;
+        _navigableChapters = new List<ChapterItem>();
+        _selectedChapter = null;
+        _chapterState = ChapterLoadState.NotLoaded;
+        ChapterTree.ItemsSource = null;
+
+        if (_chapterPaneVisible)
+            BeginChapterLoad();
+        else
+            ShowChapterState(ChapterLoadState.NotLoaded);
+    }
+
+    private async void BeginChapterLoad()
+    {
+        if (_doc is null)
+        {
+            _chapterState = ChapterLoadState.Empty;
+            ShowChapterState(_chapterState);
+            return;
+        }
+
+        _chapterCts.Cancel();
+        _chapterCts.Dispose();
+        _chapterCts = new CancellationTokenSource();
+        var ct = _chapterCts.Token;
+        var doc = _doc;
+
+        _chapterState = ChapterLoadState.Loading;
+        ShowChapterState(_chapterState);
+
+        try
+        {
+            // Resolve localization on the UI thread — Task.Run pool threads do not
+            // inherit CurrentUICulture (and --lang= only sets the startup thread).
+            var untitled = Strings.Get("UntitledChapter");
+            // PdfPig parsing runs off the UI thread so the PDF keeps rendering immediately.
+            var roots = await Task.Run(() => doc.GetChapters(ct, untitled), ct);
+
+            // Apply only if this document is still the active one.
+            if (ct.IsCancellationRequested || !ReferenceEquals(doc, _doc))
+                return;
+
+            _chapterRoots = roots;
+            _navigableChapters = FlattenNavigable(roots);
+            ChapterTree.ItemsSource = roots;
+            _chapterState = roots.Count == 0 ? ChapterLoadState.Empty : ChapterLoadState.Loaded;
+            ShowChapterState(_chapterState);
+            SyncChapterSelection();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer document/load; that load owns the pane UI.
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            if (!ReferenceEquals(doc, _doc))
+                return;
+            _chapterState = ChapterLoadState.Failed;
+            ShowChapterState(_chapterState);
+        }
+    }
+
+    /// <summary>Flattened navigable nodes in (PageIndex, SourceOrder) order for O(log n) lookups.</summary>
+    private static List<ChapterItem> FlattenNavigable(List<ChapterItem> roots)
+    {
+        var list = new List<ChapterItem>();
+        var stack = new Stack<ChapterItem>();
+        for (int i = roots.Count - 1; i >= 0; i--)
+            stack.Push(roots[i]);
+
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node.PageIndex.HasValue)
+                list.Add(node);
+            for (int i = node.Children.Count - 1; i >= 0; i--)
+                stack.Push(node.Children[i]);
+        }
+
+        list.Sort((a, b) =>
+        {
+            int byPage = a.PageIndex!.Value.CompareTo(b.PageIndex!.Value);
+            return byPage != 0 ? byPage : a.SourceOrder.CompareTo(b.SourceOrder);
+        });
+        return list;
+    }
+
+    private void ShowChapterState(ChapterLoadState state)
+    {
+        ChapterTree.Visibility = state == ChapterLoadState.Loaded ? Visibility.Visible : Visibility.Collapsed;
+        ChapterLoadingText.Visibility = state == ChapterLoadState.Loading ? Visibility.Visible : Visibility.Collapsed;
+        ChapterEmptyText.Visibility = state == ChapterLoadState.Empty ? Visibility.Visible : Visibility.Collapsed;
+        ChapterFailedText.Visibility = state == ChapterLoadState.Failed ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// The active chapter is the latest outline node (by SourceOrder) with the greatest
+    /// PageIndex &lt;= the current page. Keeps the tree selection following every
+    /// page-navigation route without rescanning the whole tree.
+    /// </summary>
+    private void SyncChapterSelection()
+    {
+        if (_doc is null || _navigableChapters.Count == 0) return;
+
+        // Binary search: last entry with PageIndex <= _currentPage (list is sorted by
+        // PageIndex, ties ordered by SourceOrder — exactly "greatest page, latest node").
+        int lo = 0, hi = _navigableChapters.Count - 1, best = -1;
+        while (lo <= hi)
+        {
+            int mid = (lo + hi) / 2;
+            if (_navigableChapters[mid].PageIndex!.Value <= _currentPage) { best = mid; lo = mid + 1; }
+            else hi = mid - 1;
+        }
+        if (best < 0)
+        {
+            // Pages before the first bookmark have no active chapter — clear any stale highlight.
+            ClearChapterSelection();
+            return;
+        }
+
+        var active = _navigableChapters[best];
+        if (ReferenceEquals(active, _selectedChapter)) return;
+
+        _suppressChapterNav = true;
+        try
+        {
+            if (_selectedChapter is not null)
+                _selectedChapter.IsSelected = false;
+            _selectedChapter = active;
+            active.IsSelected = true;
+
+            for (var p = active.Parent; p is not null; p = p.Parent)
+                p.IsExpanded = true;
+
+            // Keep suppress raised through UpdateLayout so TwoWay IsSelected
+            // realizing a container cannot re-enter SelectedItemChanged → GoToPage.
+            if (_chapterPaneVisible)
+                BringChapterIntoView(active);
+        }
+        finally
+        {
+            _suppressChapterNav = false;
+        }
+    }
+
+    private void ClearChapterSelection()
+    {
+        if (_selectedChapter is null) return;
+        _suppressChapterNav = true;
+        try
+        {
+            _selectedChapter.IsSelected = false;
+            _selectedChapter = null;
+        }
+        finally
+        {
+            _suppressChapterNav = false;
+        }
+    }
+
+    private void BringChapterIntoView(ChapterItem item)
+    {
+        if (!ChapterTree.IsVisible) return;
+        ChapterTree.UpdateLayout();
+        if (FindChapterContainer(ChapterTree, item) is TreeViewItem tvi)
+            tvi.BringIntoView();
+    }
+
+    /// <summary>Best-effort container lookup; only realized (expanded) containers exist.</summary>
+    private static DependencyObject? FindChapterContainer(ItemsControl parent, object target)
+    {
+        foreach (var child in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(child) is not TreeViewItem container)
+                continue;
+            if (ReferenceEquals(child, target))
+                return container;
+            if (container.IsExpanded && FindChapterContainer(container, target) is { } found)
+                return found;
+        }
+        return null;
+    }
+
+    private void ChapterTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        // Programmatic sync sets _suppressChapterNav so it never recursively navigates.
+        if (_suppressChapterNav) return;
+        if (e.NewValue is not ChapterItem item) return;
+
+        if (!ReferenceEquals(item, _selectedChapter))
+        {
+            _suppressChapterNav = true;
+            try
+            {
+                if (_selectedChapter is not null)
+                    _selectedChapter.IsSelected = false;
+                _selectedChapter = item;
+            }
+            finally
+            {
+                _suppressChapterNav = false;
+            }
+        }
+
+        // Container, URI, external-file, and embedded-file nodes have no PageIndex:
+        // selecting them only selects/expands — no URI or file is ever launched.
+        if (item.PageIndex is int pageIndex)
+            GoToPage(pageIndex);
+    }
+
     // ---------- Printing ----------
 
     private void Print_Click(object sender, RoutedEventArgs e) => ShowPrintPreview();
@@ -337,6 +615,11 @@ public partial class MainWindow : Window
     {
         if (!_fullscreen)
         {
+            // Remember pane visibility; fullscreen always hides the chapter pane.
+            _preFsChapterVisible = _chapterPaneVisible;
+            if (_chapterPaneVisible)
+                SetChapterPaneVisible(false);
+
             _preFsState = WindowState;
             _preFsStyle = WindowStyle;
             WindowStyle = WindowStyle.None;
@@ -351,6 +634,9 @@ public partial class MainWindow : Window
             WindowState = _preFsState;
             ToolbarHost.Visibility = Visibility.Visible;
             _fullscreen = false;
+
+            if (_preFsChapterVisible)
+                SetChapterPaneVisible(true);
         }
         if (_fitToView)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
@@ -372,6 +658,12 @@ public partial class MainWindow : Window
             or Key.Left or Key.Right or Key.Home or Key.End)
             return;
 
+        // Let the chapter tree keep its own keyboard navigation (expand/collapse, first/last,
+        // paging through nodes) instead of turning those keys into page turns.
+        if (ChapterTree.IsKeyboardFocusWithin && e.Key is Key.Left or Key.Right
+            or Key.Home or Key.End or Key.PageUp or Key.PageDown)
+            return;
+
         // When the page viewport itself has focus and there's actually room to pan
         // a zoomed-in page, let ScrollViewer's own scrolling handle these keys
         // instead of always stealing them for page-turning. The >= 1 threshold matches
@@ -389,6 +681,7 @@ public partial class MainWindow : Window
         {
             case Key.O when ctrl: ShowOpenDialog(); break;
             case Key.P when ctrl: ShowPrintPreview(); break;
+            case Key.F4: SetChapterPaneVisible(!_chapterPaneVisible); break;
             case Key.F11: ToggleFullscreen(); break;
             case Key.Escape when _fullscreen: ToggleFullscreen(); break;
 
@@ -445,6 +738,7 @@ public partial class MainWindow : Window
                 {
                     _currentPage = i;
                     PageBox.Text = (i + 1).ToString();
+                    SyncChapterSelection();
                 }
                 break;
             }

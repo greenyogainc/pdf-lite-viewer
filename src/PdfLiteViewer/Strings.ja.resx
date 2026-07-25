@@ -66,4 +66,11 @@
   <data name="CancelBtn" xml:space="preserve"><value>キャンセル</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>指定範囲にページがありません</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>章</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>文書の章を表示または非表示にします (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>章を閉じる</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>章を読み込んでいます…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>このPDFには章がありません。</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>無題の章</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>章を読み込めませんでした。</value></data>
 </root>

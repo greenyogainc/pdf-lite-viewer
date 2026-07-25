@@ -19,7 +19,11 @@ public partial class App : Application
             {
                 try
                 {
-                    Thread.CurrentThread.CurrentUICulture = new CultureInfo(arg["--lang=".Length..]);
+                    var culture = new CultureInfo(arg["--lang=".Length..]);
+                    // Set both the startup thread and the defaults used by thread-pool
+                    // workers (chapter extraction, etc.) so --lang= applies app-wide.
+                    Thread.CurrentThread.CurrentUICulture = culture;
+                    CultureInfo.DefaultThreadCurrentUICulture = culture;
                 }
                 catch (CultureNotFoundException) { }
             }
@@ -42,7 +46,7 @@ public partial class App : Application
     private static string LogPath =>
         Path.Combine(Path.GetTempPath(), "PdfLiteViewer.log");
 
-    private static void LogError(Exception ex)
+    internal static void LogError(Exception ex)
     {
         try
         {

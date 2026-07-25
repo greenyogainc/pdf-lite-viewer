@@ -2,6 +2,8 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using SkiaSharp;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.Outline;
 
 namespace PdfLiteViewer;
 
@@ -78,6 +80,81 @@ public sealed class PdfDoc
         finally
         {
             RenderLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Extracts the embedded outline/bookmark hierarchy via PdfPig (read-only; PDFium rendering
+    /// is untouched). Returns an empty list when the document has no outline. Throws on parse
+    /// failure — the caller turns that into a localized "could not load" state, so a broken
+    /// outline never blocks opening or rendering the PDF.
+    /// </summary>
+    /// <param name="untitledFallback">
+    /// Localized label for blank bookmark titles, resolved by the caller on the UI thread
+    /// (pool threads do not inherit CurrentUICulture).
+    /// </param>
+    public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        using var pdf = PdfDocument.Open(_bytes);
+
+        ct.ThrowIfCancellationRequested();
+
+        var roots = new List<ChapterItem>();
+        if (!pdf.TryGetBookmarks(out var bookmarks, allowContainerNode: true))
+            return roots;
+
+        ct.ThrowIfCancellationRequested();
+
+        int order = 0;
+        MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, ct, untitledFallback);
+
+        ct.ThrowIfCancellationRequested();
+        return roots;
+    }
+
+    private void MapBookmarks(IReadOnlyList<BookmarkNode> nodes, ChapterItem? parent, int depth,
+        List<ChapterItem> output, ref int order, CancellationToken ct, string untitledFallback)
+    {
+        foreach (var node in nodes)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var title = node.Title?.Trim();
+            if (string.IsNullOrEmpty(title))
+                title = untitledFallback;
+
+            // Only a genuine in-document destination navigates. External- and embedded-file
+            // nodes derive from DocumentBookmarkNode, so they must be excluded explicitly;
+            // container and URI nodes never are DocumentBookmarkNodes at all.
+            int? pageIndex = null;
+            if (node is DocumentBookmarkNode docNode
+                and not ExternalBookmarkNode
+                and not EmbeddedBookmarkNode)
+            {
+                int page = docNode.PageNumber;  // PdfPig: 1-based, 0 = invalid destination
+                if (page >= 1 && page <= PageCount)
+                    pageIndex = page - 1;
+            }
+
+            var item = new ChapterItem
+            {
+                Title = title,
+                PageIndex = pageIndex,
+                Parent = parent,
+                Depth = depth,
+                SourceOrder = order++
+            };
+            output.Add(item);
+
+            if (node.Children is { Count: > 0 } children)
+            {
+                var childList = new List<ChapterItem>(children.Count);
+                MapBookmarks(children, item, depth + 1, childList, ref order, ct, untitledFallback);
+                foreach (var child in childList)
+                    item.Children.Add(child);
+            }
         }
     }
 

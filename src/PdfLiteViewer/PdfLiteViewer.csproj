@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>PdfLiteViewer</AssemblyName>
     <RootNamespace>PdfLiteViewer</RootNamespace>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>Green Yoga Inc</Authors>
     <Company>Green Yoga Inc</Company>
     <Product>PDF Lite Viewer</Product>
@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <PackageReference Include="PDFtoImage" Version="5.1.0" />
+    <!-- Outline/bookmark extraction only; rendering stays with PDFtoImage. -->
+    <PackageReference Include="PdfPig" Version="0.1.15" />
   </ItemGroup>
 
 </Project>

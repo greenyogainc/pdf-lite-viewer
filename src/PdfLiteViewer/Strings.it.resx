@@ -66,4 +66,11 @@ Dettagli registrati in:
   <data name="CancelBtn" xml:space="preserve"><value>Annulla</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>Nessuna pagina nell'intervallo</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>Capitoli</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>Mostra o nascondi i capitoli del documento (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>Chiudi capitoli</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>Caricamento dei capitoli…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>Questo PDF non contiene capitoli.</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>Capitolo senza titolo</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>Impossibile caricare i capitoli.</value></data>
 </root>

@@ -66,4 +66,11 @@
   <data name="CancelBtn" xml:space="preserve"><value>Отмена</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>В диапазоне нет страниц</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>Главы</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>Показать или скрыть главы документа (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>Закрыть главы</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>Загрузка глав…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>В этом PDF нет глав.</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>Глава без названия</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>Не удалось загрузить главы.</value></data>
 </root>

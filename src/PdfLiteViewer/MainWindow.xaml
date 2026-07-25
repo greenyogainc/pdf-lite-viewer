@@ -65,6 +65,123 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style TargetType="ToggleButton" x:Key="BarToggle">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource BarFg}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#FF3D3D3D"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#FF1F5B94"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Chapter tree (dark) -->
+        <Style TargetType="ToggleButton" x:Key="ExpandToggle">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Width="16" Height="16" Background="{TemplateBinding Background}">
+                            <TextBlock x:Name="Glyph" Text="▸" FontSize="10" Foreground="{StaticResource BarFg}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       RenderTransformOrigin="0.5,0.5">
+                                <TextBlock.RenderTransform>
+                                    <RotateTransform Angle="0"/>
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Glyph" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <HierarchicalDataTemplate x:Key="ChapterTemplate" DataType="{x:Type local:ChapterItem}"
+                                  ItemsSource="{Binding Children}">
+            <TextBlock x:Name="ChapterTitle" Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Title}"/>
+            <HierarchicalDataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsNavigable}" Value="False">
+                    <Setter TargetName="ChapterTitle" Property="Foreground" Value="#FF9A9A9A"/>
+                </DataTrigger>
+            </HierarchicalDataTemplate.Triggers>
+        </HierarchicalDataTemplate>
+
+        <Style TargetType="TreeViewItem" x:Key="DarkTreeViewItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource BarFg}"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeViewItem">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" MinWidth="19"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <ToggleButton x:Name="Expander" Style="{StaticResource ExpandToggle}"
+                                          ClickMode="Press"
+                                          IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <Border x:Name="Bd" Grid.Column="1" CornerRadius="3"
+                                    Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter x:Name="PART_Header" ContentSource="Header" HorizontalAlignment="Stretch"/>
+                            </Border>
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Grid.Column="1"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                            </Trigger>
+                            <Trigger Property="IsExpanded" Value="False">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF3D3D3D"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF1F5B94"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -72,6 +189,11 @@
             <DockPanel Margin="8,5" LastChildFill="False">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Style="{StaticResource BarButton}" Content="{local:Loc Open}" Click="Open_Click" ToolTip="{local:Loc OpenTooltip}"/>
+                    <!-- Non-directional contents glyph: keeps the toolbar compact for long translations. -->
+                    <ToggleButton x:Name="ChapterToggle" Style="{StaticResource BarToggle}" Content="☰"
+                                  Checked="ChapterToggle_Changed" Unchecked="ChapterToggle_Changed"
+                                  ToolTip="{local:Loc ChaptersTooltip}"
+                                  AutomationProperties.Name="{local:Loc Chapters}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <RadioButton x:Name="ModeFacing" Style="{StaticResource ModeButton}" Content="{local:Loc Facing}" GroupName="mode"
                                  IsChecked="True" Checked="Mode_Checked" ToolTip="{local:Loc FacingTooltip}"/>
@@ -106,37 +228,84 @@
         </Border>
 
         <Grid>
-            <!-- NoMirror: the scroll frame and its rendered pages must never mirror. -->
-            <ScrollViewer x:Name="Scroller"
-                          Style="{StaticResource NoMirror}"
-                          HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto"
-                          ScrollChanged="Scroller_ScrollChanged"
-                          PreviewMouseWheel="Scroller_PreviewMouseWheel"
-                          Focusable="True"
-                          Background="Transparent">
-                <ItemsControl x:Name="PagesHost" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="White" Margin="8"
-                                    Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
-                                    SnapsToDevicePixels="True">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.45"/>
-                                </Border.Effect>
-                                <Image Source="{Binding Image}" Stretch="Fill"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       SnapsToDevicePixels="True"/>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="ChapterColumn" Width="0" MinWidth="0" MaxWidth="520"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="EmptyHint"
-                       Text="{local:Loc EmptyHint}"
-                       Foreground="#FF9A9A9A" FontSize="16"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <!-- Chapter sidebar: deliberately NOT NoMirror — it follows the UI culture's reading
+                 direction, so under Arabic it docks on the right with RTL indentation. -->
+            <Border x:Name="ChapterPane" Grid.Column="0" Background="{StaticResource BarBg}" Visibility="Collapsed">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="8,6">
+                        <TextBlock Text="{local:Loc Chapters}" Foreground="{StaticResource BarFg}"
+                                   FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Button Style="{StaticResource BarButton}" Content="✕" Padding="6,2"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Click="ChapterClose_Click"
+                                ToolTip="{local:Loc CloseChaptersTooltip}"
+                                AutomationProperties.Name="{local:Loc CloseChaptersTooltip}"/>
+                    </Grid>
+                    <Grid Margin="4,0,4,4">
+                        <TreeView x:Name="ChapterTree" Background="Transparent" BorderThickness="0"
+                                  Foreground="{StaticResource BarFg}"
+                                  Padding="0,0,0,4"
+                                  ItemContainerStyle="{StaticResource DarkTreeViewItem}"
+                                  ItemTemplate="{StaticResource ChapterTemplate}"
+                                  SelectedItemChanged="ChapterTree_SelectedItemChanged"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  Visibility="Collapsed"/>
+                        <TextBlock x:Name="ChapterLoadingText" Text="{local:Loc LoadingChapters}"
+                                   Foreground="#FF9A9A9A" FontSize="13" Margin="8,4"
+                                   TextWrapping="Wrap" Visibility="Collapsed"/>
+                        <TextBlock x:Name="ChapterEmptyText" Text="{local:Loc NoChapters}"
+                                   Foreground="#FF9A9A9A" FontSize="13" Margin="8,4"
+                                   TextWrapping="Wrap" Visibility="Collapsed"/>
+                        <TextBlock x:Name="ChapterFailedText" Text="{local:Loc ChapterLoadFailed}"
+                                   Foreground="#FF9A9A9A" FontSize="13" Margin="8,4"
+                                   TextWrapping="Wrap" Visibility="Collapsed"/>
+                    </Grid>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter x:Name="ChapterSplitter" Grid.Column="1" Width="4"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="Transparent" ShowsPreview="False" Visibility="Collapsed"/>
+
+            <Grid Grid.Column="2">
+                <!-- NoMirror: the scroll frame and its rendered pages must never mirror. -->
+                <ScrollViewer x:Name="Scroller"
+                              Style="{StaticResource NoMirror}"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              ScrollChanged="Scroller_ScrollChanged"
+                              PreviewMouseWheel="Scroller_PreviewMouseWheel"
+                              Focusable="True"
+                              Background="Transparent">
+                    <ItemsControl x:Name="PagesHost" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="White" Margin="8"
+                                        Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
+                                        SnapsToDevicePixels="True">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.45"/>
+                                    </Border.Effect>
+                                    <Image Source="{Binding Image}" Stretch="Fill"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           SnapsToDevicePixels="True"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <TextBlock x:Name="EmptyHint"
+                           Text="{local:Loc EmptyHint}"
+                           Foreground="#FF9A9A9A" FontSize="16"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
         </Grid>
     </DockPanel>
 </Window>

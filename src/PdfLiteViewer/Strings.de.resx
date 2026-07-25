@@ -66,4 +66,11 @@ Details protokolliert unter:
   <data name="CancelBtn" xml:space="preserve"><value>Abbrechen</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>Keine Seiten im Bereich</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>Kapitel</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>Dokumentkapitel anzeigen oder ausblenden (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>Kapitel schließen</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>Kapitel werden geladen…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>Dieses PDF enthält keine Kapitel.</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>Unbenanntes Kapitel</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>Kapitel konnten nicht geladen werden.</value></data>
 </root>

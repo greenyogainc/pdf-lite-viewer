@@ -66,4 +66,11 @@
   <data name="CancelBtn" xml:space="preserve"><value>إلغاء</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>لا توجد صفحات ضمن النطاق</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>الفصول</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>إظهار فصول المستند أو إخفاؤها (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>إغلاق الفصول</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>جارٍ تحميل الفصول…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>لا يحتوي ملف PDF هذا على فصول.</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>فصل بلا عنوان</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>تعذر تحميل الفصول.</value></data>
 </root>

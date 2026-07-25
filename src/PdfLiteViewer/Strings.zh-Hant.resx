@@ -66,4 +66,11 @@
   <data name="CancelBtn" xml:space="preserve"><value>取消</value></data>
   <data name="NoPagesInRangeHint" xml:space="preserve"><value>範圍內沒有頁面</value></data>
   <data name="PageLabelFormat" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="Chapters" xml:space="preserve"><value>章節</value></data>
+  <data name="ChaptersTooltip" xml:space="preserve"><value>顯示或隱藏文件章節 (F4)</value></data>
+  <data name="CloseChaptersTooltip" xml:space="preserve"><value>關閉章節</value></data>
+  <data name="LoadingChapters" xml:space="preserve"><value>正在載入章節…</value></data>
+  <data name="NoChapters" xml:space="preserve"><value>此 PDF 沒有章節。</value></data>
+  <data name="UntitledChapter" xml:space="preserve"><value>無標題章節</value></data>
+  <data name="ChapterLoadFailed" xml:space="preserve"><value>無法載入章節。</value></data>
 </root>
