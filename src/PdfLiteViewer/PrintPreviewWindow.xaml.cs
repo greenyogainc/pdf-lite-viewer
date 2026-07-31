@@ -162,7 +162,7 @@ public partial class PrintPreviewWindow : Window
         int pdfIndex = _pages[_previewIndex];
         PageLabel.Text = string.Format(Strings.Get("PageLabelFormat"), _previewIndex + 1, _pages.Count);
 
-        var (ptW, ptH) = _doc.PageSizes[pdfIndex];
+        var (ptW, ptH) = _doc.GetDisplaySize(pdfIndex);
         var rect = PdfPrintPaginator.PlacePage(ptW, ptH, _paper);
         Canvas.SetLeft(PageImage, rect.X);
         Canvas.SetTop(PageImage, rect.Y);

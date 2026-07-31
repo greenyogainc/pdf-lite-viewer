@@ -23,8 +23,11 @@ public sealed class PdfDoc
     public string FilePath { get; }
     public int PageCount { get; }
 
-    /// <summary>Page sizes in PDF points (1/72 inch).</summary>
+    /// <summary>Page sizes in PDF points (1/72 inch), unrotated.</summary>
     public IReadOnlyList<(double Width, double Height)> PageSizes { get; }
+
+    /// <summary>View/print rotation applied when rendering. Does not rewrite the file on disk.</summary>
+    public PDFtoImage.PdfRotation Rotation { get; set; } = PDFtoImage.PdfRotation.Rotate0;
 
     public PdfDoc(string path)
     {
@@ -35,12 +38,25 @@ public sealed class PdfDoc
         PageSizes = sizes.Select(s => ((double)s.Width, (double)s.Height)).ToList();
     }
 
+    /// <summary>
+    /// Page size in PDF points after the current <see cref="Rotation"/> —
+    /// width/height swap for 90° and 270°.
+    /// </summary>
+    public (double Width, double Height) GetDisplaySize(int pageIndex)
+    {
+        var (w, h) = PageSizes[pageIndex];
+        return Rotation is PDFtoImage.PdfRotation.Rotate90 or PDFtoImage.PdfRotation.Rotate270
+            ? (h, w)
+            : (w, h);
+    }
+
     public async Task<BitmapSource> RenderPageAsync(int pageIndex, int targetPixelWidth, CancellationToken ct)
     {
         await RenderLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             ct.ThrowIfCancellationRequested();
+            var rotation = Rotation;
             return await Task.Run(() =>
             {
                 using var sk = PDFtoImage.Conversion.ToImage(
@@ -51,6 +67,7 @@ public sealed class PdfDoc
                         WithAspectRatio: true,
                         WithAnnotations: true,
                         WithFormFill: true,
+                        Rotation: rotation,
                         AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
                         BackgroundColor: SKColors.White));
                 return ToBitmapSource(sk);
@@ -76,6 +93,7 @@ public sealed class PdfDoc
                     WithAspectRatio: true,
                     WithAnnotations: true,
                     WithFormFill: true,
+                    Rotation: Rotation,
                     AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
                     BackgroundColor: SKColors.White));
             return ToBitmapSource(sk);

@@ -47,7 +47,7 @@ public sealed class PdfPrintPaginator : DocumentPaginator
     public override DocumentPage GetPage(int pageNumber)
     {
         int pdfIndex = _pages[pageNumber];
-        var (ptW, ptH) = _doc.PageSizes[pdfIndex];
+        var (ptW, ptH) = _doc.GetDisplaySize(pdfIndex);
         var rect = PlacePage(ptW, ptH, _pageSize);
 
         int pixelWidth = Math.Min(6000, (int)Math.Round(rect.Width / 96.0 * PrintDpi));

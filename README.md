@@ -16,7 +16,7 @@ displays them well, and that's it.
   chapters/bookmarks as a tree; clicking a chapter jumps to its page and the
   current chapter stays highlighted as you navigate. PDFs without an outline
   show a simple empty state.
-- Zoom (`Ctrl` `+`/`−`/`0`, `Ctrl`+wheel), fit-to-view, page navigation, go-to-page
+- Zoom (`Ctrl` `+`/`−`/`0`, `Ctrl`+wheel), fit-to-view, **rotate** (`Ctrl+R` or toolbar), page navigation, go-to-page
 - Open via dialog (`Ctrl+O`), drag & drop, or double-click a `.pdf` (file association)
 - Print (`Ctrl+P`) with page-range support, via the standard Windows print dialog
 - That's the whole feature list, by design.
@@ -33,6 +33,7 @@ displays them well, and that's it.
 | `←` `→` / `PgUp` `PgDn` | Previous / next page |
 | `Home` / `End` | First / last page |
 | `Ctrl` `+` / `−` / `0` | Zoom in / out / fit |
+| `Ctrl+R` | Rotate pages 90° clockwise (view + print; file unchanged) |
 
 ## Building
 

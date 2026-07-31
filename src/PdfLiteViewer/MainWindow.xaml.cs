@@ -119,6 +119,7 @@ public partial class MainWindow : Window
         EmptyHint.Visibility = Visibility.Collapsed;
         _currentPage = 0;
         _fitToView = true;
+        _doc.Rotation = PDFtoImage.PdfRotation.Rotate0;
         PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), _doc.PageCount);
         ResetChapters();
         RebuildItems();
@@ -212,15 +213,15 @@ public partial class MainWindow : Window
 
         // Page sizes are in points; 100% zoom maps 72pt -> 96px.
         double maxW = _items.Count > 0
-            ? _items.Max(it => _doc.PageSizes[it.PageIndex].Width) * 96.0 / 72.0
+            ? _items.Max(it => _doc.GetDisplaySize(it.PageIndex).Width) * 96.0 / 72.0
             : 100;
 
         if (_mode == ViewMode.Continuous)
             return Math.Max(0.05, (viewW - PageMargin - 24) / maxW);
 
         // Single / facing: fit the whole page group inside the viewport.
-        double groupW = _items.Sum(it => _doc.PageSizes[it.PageIndex].Width * 96.0 / 72.0 + PageMargin);
-        double maxH = _items.Max(it => _doc.PageSizes[it.PageIndex].Height) * 96.0 / 72.0;
+        double groupW = _items.Sum(it => _doc.GetDisplaySize(it.PageIndex).Width * 96.0 / 72.0 + PageMargin);
+        double maxH = _items.Max(it => _doc.GetDisplaySize(it.PageIndex).Height) * 96.0 / 72.0;
         double zw = (viewW - 24) / groupW;
         double zh = (viewH - PageMargin - 4) / maxH;
         return Math.Max(0.05, Math.Min(zw, zh));
@@ -235,7 +236,7 @@ public partial class MainWindow : Window
 
         foreach (var it in _items)
         {
-            var (w, h) = _doc.PageSizes[it.PageIndex];
+            var (w, h) = _doc.GetDisplaySize(it.PageIndex);
             it.DisplayWidth = w * 96.0 / 72.0 * _zoom;
             it.DisplayHeight = h * 96.0 / 72.0 * _zoom;
         }
@@ -273,6 +274,34 @@ public partial class MainWindow : Window
     private void Fit_Click(object sender, RoutedEventArgs e)
     {
         _fitToView = true;
+        ApplyLayout(scrollToCurrent: false);
+    }
+
+    private void Rotate_Click(object sender, RoutedEventArgs e) => RotateClockwise();
+
+    private void RotateClockwise()
+    {
+        if (_doc is null) return;
+
+        // Cancel before changing Rotation so an in-flight render cannot write a
+        // bitmap produced with the previous orientation (especially 180°, where
+        // display size is unchanged and the pixel-width cache would skip a redo).
+        CancelPendingRenders();
+
+        _doc.Rotation = _doc.Rotation switch
+        {
+            PDFtoImage.PdfRotation.Rotate0 => PDFtoImage.PdfRotation.Rotate90,
+            PDFtoImage.PdfRotation.Rotate90 => PDFtoImage.PdfRotation.Rotate180,
+            PDFtoImage.PdfRotation.Rotate180 => PDFtoImage.PdfRotation.Rotate270,
+            _ => PDFtoImage.PdfRotation.Rotate0,
+        };
+
+        foreach (var it in _items)
+        {
+            it.Image = null;
+            it.RenderedPixelWidth = 0;
+        }
+
         ApplyLayout(scrollToCurrent: false);
     }
 
@@ -693,6 +722,7 @@ public partial class MainWindow : Window
         {
             case Key.O when ctrl: ShowOpenDialog(); break;
             case Key.P when ctrl: ShowPrintPreview(); break;
+            case Key.R when ctrl: RotateClockwise(); break;
             case Key.F4: SetChapterPaneVisible(!_chapterPaneVisible); break;
             case Key.F11: ToggleFullscreen(); break;
             case Key.Escape when _fullscreen: ToggleFullscreen(); break;
