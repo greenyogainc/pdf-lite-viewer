@@ -29,10 +29,10 @@ Submission steps (one-time Partner Center setup):
 release with the MSIX or a zip of the self-contained publish output:
 
 1. Fill in the real `InstallerUrl` + `InstallerSha256`
-   (`Get-FileHash .\PdfLiteViewer-1.0.0-win-x64.msix`).
-2. Validate: `winget validate --manifest winget\`
+   (`Get-FileHash .\PdfLiteViewer-1.0.5-win-x64.zip`).
+2. Validate: `winget validate --manifest winget\manifests\g\GreenYogaInc\PDFLiteViewer\1.0.5\`
 3. Submit a PR to https://github.com/microsoft/winget-pkgs under
-   `manifests/g/GreenYogaInc/PDFLiteViewer/1.0.0/`.
+   `manifests/g/GreenYogaInc/PDFLiteViewer/1.0.5/`.
 
 ## Sideload / direct download
 
@@ -40,7 +40,7 @@ For a plain freeware download (no store), ship the publish folder as a zip:
 
 ```powershell
 dotnet publish src\PdfLiteViewer -c Release -r win-x64 --self-contained true -o dist\PdfLiteViewer
-Compress-Archive dist\PdfLiteViewer dist\PdfLiteViewer-1.0.0-win-x64.zip
+Compress-Archive dist\PdfLiteViewer dist\PdfLiteViewer-<version>-win-x64.zip
 ```
 
 No installer needed — `PdfLiteViewer.exe` runs standalone.

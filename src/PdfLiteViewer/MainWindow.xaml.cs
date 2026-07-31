@@ -425,7 +425,7 @@ public partial class MainWindow : Window
                 return;
 
             _chapterRoots = roots;
-            _navigableChapters = FlattenNavigable(roots);
+            _navigableChapters = ChapterItem.FlattenNavigable(roots);
             ChapterTree.ItemsSource = roots;
             _chapterState = roots.Count == 0 ? ChapterLoadState.Empty : ChapterLoadState.Loaded;
             ShowChapterState(_chapterState);
@@ -443,36 +443,6 @@ public partial class MainWindow : Window
             _chapterState = ChapterLoadState.Failed;
             ShowChapterState(_chapterState);
         }
-    }
-
-    /// <summary>
-    /// Flattened navigable nodes sorted by (PageIndex, Depth, SourceOrder) so a binary
-    /// search for the last entry with PageIndex &lt;= page yields the deepest/later node.
-    /// </summary>
-    private static List<ChapterItem> FlattenNavigable(List<ChapterItem> roots)
-    {
-        var list = new List<ChapterItem>();
-        var stack = new Stack<ChapterItem>();
-        for (int i = roots.Count - 1; i >= 0; i--)
-            stack.Push(roots[i]);
-
-        while (stack.Count > 0)
-        {
-            var node = stack.Pop();
-            if (node.PageIndex.HasValue)
-                list.Add(node);
-            for (int i = node.Children.Count - 1; i >= 0; i--)
-                stack.Push(node.Children[i]);
-        }
-
-        list.Sort((a, b) =>
-        {
-            int byPage = a.PageIndex!.Value.CompareTo(b.PageIndex!.Value);
-            if (byPage != 0) return byPage;
-            int byDepth = a.Depth.CompareTo(b.Depth);
-            return byDepth != 0 ? byDepth : a.SourceOrder.CompareTo(b.SourceOrder);
-        });
-        return list;
     }
 
     private void ShowChapterState(ChapterLoadState state)

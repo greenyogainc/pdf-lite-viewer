@@ -35,6 +35,36 @@ public sealed class ChapterItem : INotifyPropertyChanged
         set { _isExpanded = value; OnChanged(nameof(IsExpanded)); }
     }
 
+    /// <summary>
+    /// Flattens a chapter tree to navigable nodes only, sorted by (PageIndex, Depth, SourceOrder)
+    /// so a binary search for the last entry with PageIndex &lt;= page yields the deepest/later node.
+    /// </summary>
+    public static List<ChapterItem> FlattenNavigable(List<ChapterItem> roots)
+    {
+        var list = new List<ChapterItem>();
+        var stack = new Stack<ChapterItem>();
+        for (int i = roots.Count - 1; i >= 0; i--)
+            stack.Push(roots[i]);
+
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node.PageIndex.HasValue)
+                list.Add(node);
+            for (int i = node.Children.Count - 1; i >= 0; i--)
+                stack.Push(node.Children[i]);
+        }
+
+        list.Sort((a, b) =>
+        {
+            int byPage = a.PageIndex!.Value.CompareTo(b.PageIndex!.Value);
+            if (byPage != 0) return byPage;
+            int byDepth = a.Depth.CompareTo(b.Depth);
+            return byDepth != 0 ? byDepth : a.SourceOrder.CompareTo(b.SourceOrder);
+        });
+        return list;
+    }
+
     public bool IsSelected
     {
         get => _isSelected;
