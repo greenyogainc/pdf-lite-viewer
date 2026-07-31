@@ -138,4 +138,67 @@ startxref
 %%EOF
 '@
 
+# --- malformed-outline.pdf: dangling /Outlines reference (should degrade to no bookmarks) ---
+Write-Pdf (Join-Path $outDir "malformed-outline.pdf") @'
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R /Outlines 99 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj
+4 0 obj<< /Length 44 >>stream
+BT /F1 12 Tf 72 720 Td (Fixture) Tj ET
+endstream
+endobj
+5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000076 00000 n 
+0000000131 00000 n 
+0000000260 00000 n 
+0000000353 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+0422
+%%EOF
+'@
+
+# --- named-destinations.pdf: outline entry resolved via the Names/Dests tree ---
+Write-Pdf (Join-Path $outDir "named-destinations.pdf") @'
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R /Outlines 8 0 R /Names 9 0 R /PageMode /UseOutlines >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>endobj
+5 0 obj<< /Length 44 >>stream
+BT /F1 12 Tf 72 720 Td (Fixture) Tj ET
+endstream
+endobj
+7 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+8 0 obj<< /Type /Outlines /First 10 0 R /Last 10 0 R /Count 1 >>endobj
+9 0 obj<< /Dests 11 0 R >>endobj
+10 0 obj<< /Title (Named Jump) /Parent 8 0 R /Dest (chap1) >>endobj
+11 0 obj<< /Names [(chap1) 12 0 R] >>endobj
+12 0 obj[4 0 R /Fit]endobj
+xref
+0 13
+0000000000 65535 f 
+0000000009 00000 n 
+0000000112 00000 n 
+0000000175 00000 n 
+0000000304 00000 n 
+0000000433 00000 n 
+0000000000 65535 f 
+0000000526 00000 n 
+0000000595 00000 n 
+0000000668 00000 n 
+0000000705 00000 n 
+0000000770 00000 n 
+0000000815 00000 n 
+trailer<< /Size 13 /Root 1 0 R >>
+startxref
+0843
+%%EOF
+'@
+
 Write-Host "Fixtures ready in $outDir"
