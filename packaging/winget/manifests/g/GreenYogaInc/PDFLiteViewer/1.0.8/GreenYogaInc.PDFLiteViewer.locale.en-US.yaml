@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: GreenYogaInc.PDFLiteViewer
-PackageVersion: 1.0.6
+PackageVersion: 1.0.8
 PackageLocale: en-US
 Publisher: Green Yoga Inc
 PublisherUrl: https://github.com/greenyogainc
@@ -21,6 +21,6 @@ Tags:
   - pdf-viewer
   - reader
   - viewer
-ReleaseNotesUrl: https://github.com/greenyogainc/pdf-lite-viewer/releases/tag/v1.0.6
+ReleaseNotesUrl: https://github.com/greenyogainc/pdf-lite-viewer/releases/tag/v1.0.8
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

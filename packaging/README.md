@@ -29,10 +29,10 @@ Submission steps (one-time Partner Center setup):
 release with the MSIX or a zip of the self-contained publish output:
 
 1. Fill in the real `InstallerUrl` + `InstallerSha256`
-   (`Get-FileHash .\PdfLiteViewer-1.0.6-win-x64.zip`).
-2. Validate: `winget validate --manifest winget\manifests\g\GreenYogaInc\PDFLiteViewer\1.0.6\`
+   (`Get-FileHash .\PdfLiteViewer-1.0.8-win-x64.zip`).
+2. Validate: `winget validate --manifest winget\manifests\g\GreenYogaInc\PDFLiteViewer\1.0.8\`
 3. Submit a PR to https://github.com/microsoft/winget-pkgs under
-   `manifests/g/GreenYogaInc/PDFLiteViewer/1.0.6/`.
+   `manifests/g/GreenYogaInc/PDFLiteViewer/1.0.8/`.
 
 ## Sideload / direct download
 
