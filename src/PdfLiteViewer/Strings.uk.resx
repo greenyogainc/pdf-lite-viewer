@@ -28,6 +28,7 @@
   <data name="ZoomInTooltip" xml:space="preserve"><value>Збільшити (Ctrl++)</value></data>
   <data name="Fit" xml:space="preserve"><value>За шириною</value></data>
   <data name="FitTooltip" xml:space="preserve"><value>За шириною сторінки (Ctrl+0)</value></data>
+  <data name="Rotate" xml:space="preserve"><value>Повернути</value></data>
   <data name="RotateTooltip" xml:space="preserve"><value>Повернути за годинниковою стрілкою (Ctrl+R)</value></data>
   <data name="Print" xml:space="preserve"><value>Друк…</value></data>
   <data name="PrintTooltip" xml:space="preserve"><value>Друк (Ctrl+P)</value></data>

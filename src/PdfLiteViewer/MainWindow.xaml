@@ -229,12 +229,7 @@
                                VerticalAlignment="Center" MinWidth="44" TextAlignment="Center" FontSize="13"/>
                     <Button Style="{StaticResource BarButton}" Content="+" Click="ZoomIn_Click" ToolTip="{local:Loc ZoomInTooltip}"/>
                     <Button Style="{StaticResource BarButton}" Content="{local:Loc Fit}" Click="Fit_Click" ToolTip="{local:Loc FitTooltip}"/>
-                    <!-- NoMirror: clockwise glyph must keep its meaning in RTL layouts. -->
-                    <StackPanel Orientation="Horizontal" Style="{StaticResource NoMirror}">
-                        <Button Style="{StaticResource BarButton}" Content="↻" Click="Rotate_Click"
-                                ToolTip="{local:Loc RotateTooltip}"
-                                AutomationProperties.Name="{local:Loc RotateTooltip}"/>
-                    </StackPanel>
+                    <Button Style="{StaticResource BarButton}" Content="{local:Loc Rotate}" Click="Rotate_Click" ToolTip="{local:Loc RotateTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <Button Style="{StaticResource BarButton}" Content="{local:Loc Print}" Click="Print_Click" ToolTip="{local:Loc PrintTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
