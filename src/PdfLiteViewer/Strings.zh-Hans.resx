@@ -75,4 +75,5 @@
   <data name="NoChapters" xml:space="preserve"><value>此 PDF 没有章节。</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>无标题章节</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>无法加载章节。</value></data>
+  <data name="OpeningFile" xml:space="preserve"><value>正在打开…</value></data>
 </root>

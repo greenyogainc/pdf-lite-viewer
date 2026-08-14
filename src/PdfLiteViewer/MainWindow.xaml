@@ -291,36 +291,67 @@
 
             <Grid Grid.Column="2">
                 <!-- NoMirror: the scroll frame and its rendered pages must never mirror. -->
-                <ScrollViewer x:Name="Scroller"
+                <ItemsControl x:Name="PagesHost"
                               Style="{StaticResource NoMirror}"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Auto"
-                              ScrollChanged="Scroller_ScrollChanged"
-                              PreviewMouseWheel="Scroller_PreviewMouseWheel"
-                              Focusable="True"
-                              Background="Transparent">
-                    <ItemsControl x:Name="PagesHost" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Background="White" Margin="8"
-                                        Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
-                                        SnapsToDevicePixels="True">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.45"/>
-                                    </Border.Effect>
-                                    <Image Source="{Binding Image}" Stretch="Fill"
-                                           RenderOptions.BitmapScalingMode="HighQuality"
-                                           SnapsToDevicePixels="True"/>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              VirtualizingPanel.CacheLengthUnit="Page">
+                    <!-- The ScrollViewer lives *inside* the ItemsControl template so the items
+                         panel itself can be the scrolling host. That is what makes continuous
+                         mode virtualize: a ScrollViewer wrapped around an ItemsControl finds no
+                         IScrollInfo, so every page gets realized (a 3000-page document froze
+                         the UI thread for ~5s on every mode switch). Single/facing modes turn
+                         CanContentScroll back off — see RebuildItems. -->
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer x:Name="PART_Scroller"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto"
+                                          CanContentScroll="False"
+                                          Focusable="True"
+                                          Background="Transparent"
+                                          ScrollChanged="Scroller_ScrollChanged"
+                                          PreviewMouseWheel="Scroller_PreviewMouseWheel"
+                                          SizeChanged="Scroller_SizeChanged">
+                                <!-- Alignment is set per mode in RebuildItems: centred (shrink to
+                                     the page group) for single/facing, stretched (fill the
+                                     viewport, each page centring itself) for continuous. -->
+                                <ItemsPresenter x:Name="PART_Presenter"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <!-- HorizontalAlignment: in continuous mode the virtualizing panel
+                                 is arranged to the full viewport width, so the page centres
+                                 itself rather than the (no longer centred) panel doing it. -->
+                            <Border Background="White" Margin="8" HorizontalAlignment="Center"
+                                    Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
+                                    SnapsToDevicePixels="True">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.45"/>
+                                </Border.Effect>
+                                <Image Source="{Binding Image}" Stretch="Fill"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <TextBlock x:Name="EmptyHint"
                            Text="{local:Loc EmptyHint}"
                            Foreground="#FF9A9A9A" FontSize="16"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <!-- Shown while a document is parsed off the UI thread. -->
+                <TextBlock x:Name="LoadingHint"
+                           Text="{local:Loc OpeningFile}"
+                           Foreground="#FF9A9A9A" FontSize="16"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="Collapsed"/>
             </Grid>
         </Grid>
     </DockPanel>

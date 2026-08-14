@@ -44,6 +44,24 @@ dotnet build -c Release
 dotnet run --project src\PdfLiteViewer
 ```
 
+## Testing
+
+```powershell
+dotnet run --project tools\HangProbe -- 3000        # UI responsiveness + layout
+dotnet run --project tools\ChapterSmoke -- tools\fixtures\*.pdf
+```
+
+`HangProbe` is the regression guard against frozen-window bugs. It generates a
+many-page stress PDF, drives the real window through the operations that can block
+the message pump (opening, mode switches, zoom, rotate, page jumps, the chapter
+sidebar, the print preview, a 300 DPI print run) and, from a watchdog thread, times
+how long the UI thread takes to service queued input. Any scenario over budget fails
+the run. It then asserts the things a fast-but-wrong viewer would get wrong — pages
+centred, scrollbar spanning the document, go-to-page landing on the right page, pages
+actually rendering — and writes a PNG of each view mode to `%TEMP%\hangprobe-*.png`.
+
+It needs an interactive desktop session, since it really shows windows.
+
 ## Distribution
 
 See [packaging/README.md](packaging/README.md) for Microsoft Store (MSIX) and

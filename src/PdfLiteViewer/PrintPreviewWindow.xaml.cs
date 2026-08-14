@@ -1,4 +1,3 @@
-using System.Printing;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,15 +9,20 @@ namespace PdfLiteViewer;
 /// paginator), page-range selection, printer picker and copies — Print sends
 /// the job directly, no second OS dialog. (The Win11 print dialog's built-in
 /// preview pane only serves the UWP print pipeline, so it can't be used here.)
+///
+/// Every call into the print spooler — enumerating queues, reading a paper size,
+/// sending the job — goes through <see cref="PrintJob"/> on a worker thread, so a
+/// slow or offline printer can never freeze this window.
 /// </summary>
 public partial class PrintPreviewWindow : Window
 {
     private readonly PdfDoc _doc;
     private readonly int _currentDocPage;
-    private Size _paper = new(816, 1056);   // letter fallback
+    private Size _paper = PrintJob.FallbackPaper;
     private List<int> _pages = new();
     private int _previewIndex;
     private CancellationTokenSource _cts = new();
+    private bool _printing;
 
     public PrintPreviewWindow(PdfDoc doc, int currentDocPage)
     {
@@ -28,88 +32,58 @@ public partial class PrintPreviewWindow : Window
         _currentDocPage = currentDocPage;
         Title = string.Format(Strings.Get("PrintWindowTitleFormat"), System.IO.Path.GetFileName(doc.FilePath));
 
-        LoadPrinters();
-        ApplyPaperSize();
+        PrintBtn.IsEnabled = false;         // until a printer is known
+        ApplyPaperSize(_paper);             // letter placeholder; the real size lands below
         RebuildPages();
+        _ = LoadPrintersAsync();
     }
 
-    private void LoadPrinters()
+    private async Task LoadPrintersAsync()
     {
-        try
-        {
-            using var server = new LocalPrintServer();
-            var queues = server.GetPrintQueues(new[]
-            {
-                EnumeratedPrintQueueTypes.Local,
-                EnumeratedPrintQueueTypes.Connections,
-            }).Select(q => q.FullName).ToList();
+        var (names, defaultName) = await Task.Run(PrintJob.EnumerateQueues);
+        if (!IsLoaded && !IsVisible) return;
 
-            string? defaultName = null;
-            try { defaultName = LocalPrintServer.GetDefaultPrintQueue().FullName; } catch { }
+        foreach (var name in names)
+            PrinterBox.Items.Add(name);
 
-            foreach (var name in queues)
-                PrinterBox.Items.Add(name);
+        PrinterBox.SelectedItem = defaultName is not null && names.Contains(defaultName)
+            ? defaultName
+            : names.FirstOrDefault();
 
-            PrinterBox.SelectedItem = defaultName is not null && queues.Contains(defaultName)
-                ? defaultName
-                : queues.FirstOrDefault();
-        }
-        catch
-        {
-            // No print system available; leave the list empty.
-        }
-
-        PrintBtn.IsEnabled = PrinterBox.SelectedItem is not null;
+        UpdatePrintEnabled();
+        await UpdatePaperSizeAsync();
     }
 
-    private PrintQueue? SelectedQueue()
+    private async Task UpdatePaperSizeAsync()
     {
-        if (PrinterBox.SelectedItem is not string name) return null;
-        try
-        {
-            using var server = new LocalPrintServer();
-            return server.GetPrintQueues(new[]
-            {
-                EnumeratedPrintQueueTypes.Local,
-                EnumeratedPrintQueueTypes.Connections,
-            }).FirstOrDefault(q => q.FullName == name);
-        }
-        catch
-        {
-            return null;
-        }
+        if (PrinterBox.SelectedItem is not string name) return;
+
+        var paper = await Task.Run(() => PrintJob.PaperFor(name));
+
+        // A second printer change while this one was in flight owns the UI instead.
+        if (PrinterBox.SelectedItem as string != name) return;
+
+        _paper = paper;
+        ApplyPaperSize(paper);
+        await ShowPageAsync();
     }
 
-    private void ApplyPaperSize()
+    private void ApplyPaperSize(Size paper)
     {
-        try
-        {
-            var queue = SelectedQueue();
-            if (queue is not null)
-            {
-                var dlg = new PrintDialog { PrintQueue = queue };
-                var size = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-                if (size.Width >= 50 && size.Height >= 50)
-                    _paper = size;
-            }
-        }
-        catch
-        {
-            // keep current paper size
-        }
-
-        Paper.Width = _paper.Width;
-        Paper.Height = _paper.Height;
-        PaperCanvas.Width = _paper.Width;
-        PaperCanvas.Height = _paper.Height;
+        Paper.Width = paper.Width;
+        Paper.Height = paper.Height;
+        PaperCanvas.Width = paper.Width;
+        PaperCanvas.Height = paper.Height;
     }
+
+    private void UpdatePrintEnabled() =>
+        PrintBtn.IsEnabled = !_printing && PrinterBox.SelectedItem is not null && _pages.Count > 0;
 
     private void Printer_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (!IsLoaded) return;
-        PrintBtn.IsEnabled = PrinterBox.SelectedItem is not null;
-        ApplyPaperSize();
-        _ = ShowPageAsync();
+        UpdatePrintEnabled();
+        _ = UpdatePaperSizeAsync();
     }
 
     private void RebuildPages()
@@ -124,6 +98,7 @@ public partial class PrintPreviewWindow : Window
         bool empty = _pages.Count == 0;
         EmptyRangeHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         Paper.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        UpdatePrintEnabled();
 
         _previewIndex = 0;
         _ = ShowPageAsync();
@@ -231,40 +206,46 @@ public partial class PrintPreviewWindow : Window
         e.Handled = true;
     }
 
-    private void Print_Click(object sender, RoutedEventArgs e)
+    private async void Print_Click(object sender, RoutedEventArgs e)
     {
-        if (_pages.Count == 0) return;
-        var queue = SelectedQueue();
-        if (queue is null) return;
+        if (_printing || _pages.Count == 0 || PrinterBox.SelectedItem is not string queueName) return;
 
+        // Snapshot the settings: the job runs on its own thread from here on.
+        var pages = _pages.ToList();
         int copies = int.TryParse(CopiesBox.Text, out int c) ? Math.Clamp(c, 1, 99) : 1;
+        bool grayscale = BwCheck.IsChecked == true;
+        bool draft = DraftCheck.IsChecked == true;
+        var jobName = System.IO.Path.GetFileName(_doc.FilePath);
 
-        var dlg = new PrintDialog { PrintQueue = queue };
-        if (dlg.PrintTicket is not null)
-        {
-            dlg.PrintTicket.CopyCount = copies;
-            if (BwCheck.IsChecked == true)
-                dlg.PrintTicket.OutputColor = OutputColor.Grayscale;
-            if (DraftCheck.IsChecked == true)
-                dlg.PrintTicket.OutputQuality = OutputQuality.Draft;
-        }
-
-        var paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-        var paginator = new PdfPrintPaginator(_doc, _pages, paper);
-
+        SetPrintingState(true);
         try
         {
-            Mouse.OverrideCursor = Cursors.Wait;
-            dlg.PrintDocument(paginator, System.IO.Path.GetFileName(_doc.FilePath));
-            Close();
+            // Rendering every page at 300 DPI used to happen here, on the UI thread.
+            await PrintJob.RunAsync(_doc, pages, queueName, copies, grayscale, draft, jobName);
+            if (IsLoaded) Close();
         }
         catch (Exception ex)
         {
+            App.LogError(ex);
             Strings.ShowError(this, string.Format(Strings.Get("PrintingFailedMessage"), ex.Message));
         }
         finally
         {
-            Mouse.OverrideCursor = null;
+            SetPrintingState(false);
         }
+    }
+
+    /// <summary>The window stays responsive while a job spools; it just stops taking new input.</summary>
+    private void SetPrintingState(bool printing)
+    {
+        _printing = printing;
+        PrinterBox.IsEnabled = !printing;
+        RangeMode.IsEnabled = !printing;
+        RangeBox.IsEnabled = !printing;
+        CopiesBox.IsEnabled = !printing;
+        BwCheck.IsEnabled = !printing;
+        DraftCheck.IsEnabled = !printing;
+        Mouse.OverrideCursor = printing ? Cursors.Wait : null;
+        UpdatePrintEnabled();
     }
 }

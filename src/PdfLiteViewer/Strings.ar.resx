@@ -75,4 +75,5 @@
   <data name="NoChapters" xml:space="preserve"><value>لا يحتوي ملف PDF هذا على فصول.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>فصل بلا عنوان</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>تعذر تحميل الفصول.</value></data>
+  <data name="OpeningFile" xml:space="preserve"><value>جارٍ الفتح…</value></data>
 </root>

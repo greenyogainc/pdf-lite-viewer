@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -18,14 +17,24 @@ public partial class MainWindow : Window
     private const int KeepBuffer = 5;       // pages kept in memory beyond the viewport
 
     private PdfDoc? _doc;
+
+    /// <summary>The open document, for tools/HangProbe's layout assertions.</summary>
+    internal PdfDoc? Document => _doc;
+
     private ViewMode _mode = ViewMode.Facing;
     private int _currentPage;               // 0-based
     private double _zoom = 1.0;
     private bool _fitToView = true;
+    private double _contentHeight;          // exact total height of all pages, in pixels
 
-    private readonly ObservableCollection<PageItem> _items = new();
+    // Replaced wholesale on every rebuild (never mutated in place), so a 3000-page
+    // document costs the ItemsControl one collection reset instead of 3000.
+    private List<PageItem> _items = new();
     private readonly DispatcherTimer _renderTimer;
     private CancellationTokenSource _renderCts = new();
+
+    /// <summary>Guards against a slow open being applied after a newer one started.</summary>
+    private int _openGeneration;
 
     private bool _fullscreen;
     private WindowState _preFsState;
@@ -44,18 +53,56 @@ public partial class MainWindow : Window
     private ChapterItem? _selectedChapter;
     private CancellationTokenSource _chapterCts = new();
     private bool _suppressChapterNav;
+    private bool _chapterScrollQueued;
 
     private readonly ItemsPanelTemplate _verticalPanel;
     private readonly ItemsPanelTemplate _horizontalPanel;
+    private readonly ItemsPanelTemplate _virtualPanel;
+
+    private ScrollViewer? _scroller;
+    private Panel? _pagesPanel;   // re-resolved whenever the items panel template changes
+
+    /// <summary>
+    /// The page viewport. It lives inside <c>PagesHost</c>'s control template so that the
+    /// items panel can act as the scrolling host in continuous mode (the prerequisite for
+    /// UI virtualization), so it is resolved from the template rather than being a field.
+    /// </summary>
+    internal ScrollViewer Scroller
+    {
+        get
+        {
+            if (_scroller is null)
+            {
+                PagesHost.ApplyTemplate();
+                _scroller = (ScrollViewer)PagesHost.Template.FindName("PART_Scroller", PagesHost);
+            }
+            return _scroller;
+        }
+    }
+
+    private ItemsPresenter? _presenter;
+
+    private ItemsPresenter Presenter
+    {
+        get
+        {
+            if (_presenter is null)
+            {
+                PagesHost.ApplyTemplate();
+                _presenter = (ItemsPresenter)PagesHost.Template.FindName("PART_Presenter", PagesHost);
+            }
+            return _presenter;
+        }
+    }
 
     public MainWindow()
     {
         InitializeComponent();
         Strings.ApplyFlowDirection(this);
-        PagesHost.ItemsSource = _items;
 
-        _verticalPanel = MakePanelTemplate(Orientation.Vertical);
-        _horizontalPanel = MakePanelTemplate(Orientation.Horizontal);
+        _verticalPanel = MakeStackPanelTemplate(Orientation.Vertical);
+        _horizontalPanel = MakeStackPanelTemplate(Orientation.Horizontal);
+        _virtualPanel = MakeVirtualPanelTemplate();
         PagesHost.ItemsPanel = _verticalPanel;
 
         _renderTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
@@ -64,59 +111,96 @@ public partial class MainWindow : Window
         PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), 0);
 
         Loaded += MainWindow_Loaded;
-        // Refit when the page viewport changes — window resize, chapter pane
-        // open/close, or splitter drag. Window.SizeChanged alone misses the
-        // in-window column redistributions from the chapter sidebar.
-        Scroller.SizeChanged += (_, _) =>
-        {
-            if (!_fitToView) return;
-            // The layout pass for this resize hasn't completed yet, so
-            // ViewportWidth/Height can still be stale here. Defer until after
-            // layout settles so FitZoom() sees the real size.
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
-        };
     }
 
-    private static ItemsPanelTemplate MakePanelTemplate(Orientation orientation)
+    private static ItemsPanelTemplate MakeStackPanelTemplate(Orientation orientation)
     {
         var factory = new FrameworkElementFactory(typeof(StackPanel));
         factory.SetValue(StackPanel.OrientationProperty, orientation);
         return new ItemsPanelTemplate(factory);
     }
 
+    /// <summary>Continuous mode: only the pages near the viewport are ever realized.</summary>
+    private static ItemsPanelTemplate MakeVirtualPanelTemplate()
+    {
+        var factory = new FrameworkElementFactory(typeof(VirtualizingStackPanel));
+        factory.SetValue(VirtualizingStackPanel.OrientationProperty, Orientation.Vertical);
+        return new ItemsPanelTemplate(factory);
+    }
+
+    /// <summary>
+    /// Refit when the page viewport changes — window resize, chapter pane open/close, or
+    /// splitter drag. Window.SizeChanged alone misses the in-window column redistributions
+    /// from the chapter sidebar.
+    /// </summary>
+    private void Scroller_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_fitToView) return;
+        // The layout pass for this resize hasn't completed yet, so ViewportWidth/Height can
+        // still be stale here. Defer until after layout settles so FitZoom() sees the real size.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
+    }
+
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         var startupFile = ((App)Application.Current).StartupFile;
         if (startupFile is not null)
-            OpenFile(startupFile);
+            _ = OpenFileAsync(startupFile);
     }
 
     // ---------- File handling ----------
 
     private void Open_Click(object sender, RoutedEventArgs e) => ShowOpenDialog();
 
+    private void Window_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
+        {
+            var pdf = files.FirstOrDefault(f => f.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+            if (pdf is not null) _ = OpenFileAsync(pdf);
+        }
+    }
+
     private void ShowOpenDialog()
     {
         var dlg = new OpenFileDialog { Filter = Strings.Get("OpenFileDialogFilter"), Title = Strings.Get("OpenFileDialogTitle") };
         if (dlg.ShowDialog() == true)
-            OpenFile(dlg.FileName);
+            _ = OpenFileAsync(dlg.FileName);
     }
 
-    private void OpenFile(string path)
+    /// <summary>
+    /// Loads a document. Reading the bytes and asking PDFium for the page count and every
+    /// page size happens on a worker thread: on a big file, a network share, or a
+    /// cloud-placeholder file that has to be hydrated first, that work runs for seconds and
+    /// would otherwise freeze the window — including on the file-association launch path,
+    /// where it freezes the app before it has ever drawn.
+    /// </summary>
+    internal async Task OpenFileAsync(string path)
     {
+        int generation = ++_openGeneration;
+        EmptyHint.Visibility = Visibility.Collapsed;
+        LoadingHint.Visibility = Visibility.Visible;
+
+        PdfDoc doc;
         try
         {
-            _doc = new PdfDoc(path);
+            doc = await Task.Run(() => new PdfDoc(path));
         }
         catch (Exception ex)
         {
+            if (generation != _openGeneration) return;   // a newer open owns the UI now
+            LoadingHint.Visibility = Visibility.Collapsed;
+            EmptyHint.Visibility = _doc is null ? Visibility.Visible : Visibility.Collapsed;
             Strings.ShowError(this, string.Format(Strings.Get("OpenFileErrorMessage"), path, ex.Message));
             return;
         }
 
+        if (generation != _openGeneration) return;
+
+        LoadingHint.Visibility = Visibility.Collapsed;
+        _doc = doc;
         Title = string.Format(Strings.Get("MainWindowTitleFormat"),
             System.IO.Path.GetFileName(path), Strings.Get("AppTitle"));
-        EmptyHint.Visibility = Visibility.Collapsed;
         _currentPage = 0;
         _fitToView = true;
         _doc.Rotation = PDFtoImage.PdfRotation.Rotate0;
@@ -129,15 +213,6 @@ public partial class MainWindow : Window
     {
         e.Effects = HasPdf(e) ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
-    }
-
-    private void Window_Drop(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] files)
-        {
-            var pdf = files.FirstOrDefault(f => f.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
-            if (pdf is not null) OpenFile(pdf);
-        }
     }
 
     private static bool HasPdf(DragEventArgs e) =>
@@ -156,7 +231,7 @@ public partial class MainWindow : Window
         RebuildItems();
     }
 
-    private void SetMode(ViewMode mode)
+    internal void SetMode(ViewMode mode)
     {
         // Setting IsChecked triggers Mode_Checked, which rebuilds.
         switch (mode)
@@ -175,29 +250,52 @@ public partial class MainWindow : Window
         if (_doc is null) return;
 
         CancelPendingRenders();
-        _items.Clear();
+        var items = new List<PageItem>();
 
         switch (_mode)
         {
             case ViewMode.Continuous:
-                PagesHost.ItemsPanel = _verticalPanel;
+                // Virtualizing panel + panel-as-scroll-host: page containers are realized
+                // only around the viewport, so cost stops scaling with page count. The
+                // presenter must fill the viewport here — left to shrink-wrap, it would size
+                // itself to whichever pages happen to be realized, and pages of differing
+                // widths would slide sideways as you scroll.
+                PagesHost.ItemsPanel = _virtualPanel;
+                Scroller.CanContentScroll = true;
+                SetPresenterAlignment(HorizontalAlignment.Stretch, VerticalAlignment.Top);
                 for (int i = 0; i < _doc.PageCount; i++)
-                    _items.Add(new PageItem { PageIndex = i });
+                    items.Add(new PageItem { PageIndex = i });
                 break;
 
             case ViewMode.Single:
+                // One or two items: plain panels, and the ScrollViewer keeps pixel scrolling
+                // so a zoomed-in page pans smoothly and stays centred.
                 PagesHost.ItemsPanel = _verticalPanel;
-                _items.Add(new PageItem { PageIndex = _currentPage });
+                Scroller.CanContentScroll = false;
+                SetPresenterAlignment(HorizontalAlignment.Center, VerticalAlignment.Center);
+                items.Add(new PageItem { PageIndex = _currentPage });
                 break;
 
             case ViewMode.Facing:
                 PagesHost.ItemsPanel = _horizontalPanel;
+                Scroller.CanContentScroll = false;
+                SetPresenterAlignment(HorizontalAlignment.Center, VerticalAlignment.Center);
                 int start = FacingGroupStart(_currentPage);
-                _items.Add(new PageItem { PageIndex = start });
+                items.Add(new PageItem { PageIndex = start });
                 if (start != 0 && start + 1 < _doc.PageCount)
-                    _items.Add(new PageItem { PageIndex = start + 1 });
+                    items.Add(new PageItem { PageIndex = start + 1 });
                 break;
         }
+
+        _items = items;
+
+        // Size the pages before the panel ever sees them. Handed a list of zero-height items,
+        // a virtualizing panel concludes the whole document fits on screen and realizes every
+        // page — which is the very cost virtualization is here to avoid.
+        SizeItems();
+
+        PagesHost.ItemsSource = _items;
+        _pagesPanel = null;              // a new panel is built for the new ItemsPanel template
 
         ApplyLayout(scrollToCurrent: true);
     }
@@ -227,28 +325,35 @@ public partial class MainWindow : Window
         return Math.Max(0.05, Math.Min(zw, zh));
     }
 
-    private void ApplyLayout(bool scrollToCurrent)
+    /// <summary>Applies the current zoom to every page slot and totals the content height.</summary>
+    private void SizeItems()
     {
         if (_doc is null) return;
 
         if (_fitToView)
             _zoom = FitZoom();
 
+        _contentHeight = 0;
         foreach (var it in _items)
         {
             var (w, h) = _doc.GetDisplaySize(it.PageIndex);
             it.DisplayWidth = w * 96.0 / 72.0 * _zoom;
             it.DisplayHeight = h * 96.0 / 72.0 * _zoom;
+            _contentHeight += it.DisplayHeight + PageMargin;
         }
+    }
+
+    private void ApplyLayout(bool scrollToCurrent)
+    {
+        if (_doc is null) return;
+
+        SizeItems();
 
         ZoomText.Text = $"{Math.Round(_zoom * 100)}%";
         PageBox.Text = (_currentPage + 1).ToString();
 
         if (scrollToCurrent && _mode == ViewMode.Continuous)
-        {
-            Scroller.UpdateLayout();
-            Scroller.ScrollToVerticalOffset(OffsetOfPage(_currentPage));
-        }
+            ScrollToPage(_currentPage);
 
         ScheduleRender();
     }
@@ -261,7 +366,120 @@ public partial class MainWindow : Window
         return off;
     }
 
-    private void SetZoom(double zoom)
+    /// <summary>
+    /// Puts a page at the top of the viewport in continuous mode.
+    ///
+    /// The offset our own page heights predict is only a first guess: the panel virtualizes,
+    /// so it *estimates* the height of every page it has not realized yet, and in a document
+    /// with mixed page sizes that estimate drifts — asking for page 1501 landed on 1546. So
+    /// jump to the estimate, then measure where the page actually is and close the gap. Each
+    /// pass realizes pages nearer the target, which sharpens the panel's estimate, so this
+    /// settles in two or three passes over a handful of containers.
+    /// </summary>
+    private void ScrollToPage(int page)
+    {
+        if (_mode != ViewMode.Continuous)
+        {
+            Scroller.ScrollToVerticalOffset(OffsetOfPage(page));
+            return;
+        }
+
+        for (int pass = 0; pass < 6; pass++)
+        {
+            Scroller.UpdateLayout();
+
+            // Already realized: nudge by exactly how far it sits from the top edge.
+            if (ContainerOffset(page) is double delta)
+            {
+                if (Math.Abs(delta) < 0.5) return;
+                Scroller.ScrollToVerticalOffset(Scroller.VerticalOffset + delta);
+                continue;
+            }
+
+            // Still off screen: measure from the page that *is* at the top, using our own
+            // exact heights for the stretch in between, rescaled into the panel's offsets.
+            int anchor = TopVisiblePage();
+            if (anchor < 0 || anchor == page) return;
+
+            double gap = (OffsetOfPage(page) - OffsetOfPage(anchor)) * PanelOffsetScale()
+                       + (ContainerOffset(anchor) ?? 0);
+            if (Math.Abs(gap) < 0.5) return;
+            Scroller.ScrollToVerticalOffset(Scroller.VerticalOffset + gap);
+        }
+    }
+
+    /// <summary>
+    /// Ratio between the panel's scroll offsets and real content pixels. They differ because
+    /// the panel estimates the pages it has not realized; applying it up front lands the first
+    /// jump within a page or two, which is what keeps the correction loop to a couple of passes.
+    /// </summary>
+    private double PanelOffsetScale()
+    {
+        double extent = Scroller.ExtentHeight;
+        return _contentHeight > 0 && extent > 0 ? extent / _contentHeight : 1.0;
+    }
+
+    private void SetPresenterAlignment(HorizontalAlignment horizontal, VerticalAlignment vertical)
+    {
+        Presenter.HorizontalAlignment = horizontal;
+        Presenter.VerticalAlignment = vertical;
+    }
+
+    /// <summary>The items panel currently in use, or null before the first layout pass.</summary>
+    private Panel? PagesPanel()
+    {
+        if (_pagesPanel is not null) return _pagesPanel;
+        if (Scroller.Content is not ItemsPresenter presenter) return null;
+        presenter.ApplyTemplate();
+        if (VisualTreeHelper.GetChildrenCount(presenter) == 0) return null;
+        return _pagesPanel = VisualTreeHelper.GetChild(presenter, 0) as Panel;
+    }
+
+    /// <summary>Vertical position of a page's container relative to the viewport, if realized.</summary>
+    private double? ContainerOffset(int page)
+    {
+        if (PagesHost.ItemContainerGenerator.ContainerFromIndex(page) is not FrameworkElement container ||
+            !container.IsVisible)
+            return null;
+
+        return container.TransformToAncestor(Scroller).Transform(default).Y;
+    }
+
+    /// <summary>
+    /// The page covering the top edge of the viewport, read from the containers the panel
+    /// actually laid out. Deriving it from the scroll offset instead would inherit the
+    /// panel's estimate for unrealized pages and report the wrong page number.
+    /// </summary>
+    private int TopVisiblePage()
+    {
+        var panel = PagesPanel();
+        if (panel is null) return -1;
+
+        int covering = -1, firstBelow = -1;
+        double coveringTop = double.NegativeInfinity, firstBelowTop = double.PositiveInfinity;
+
+        foreach (UIElement child in panel.Children)
+        {
+            if (child is not FrameworkElement element || !element.IsVisible) continue;
+            int index = PagesHost.ItemContainerGenerator.IndexFromContainer(child);
+            if (index < 0) continue;
+
+            double top = element.TransformToAncestor(Scroller).Transform(default).Y;
+            if (top <= 1 && top + element.ActualHeight > 1)
+            {
+                if (top > coveringTop) { coveringTop = top; covering = index; }
+            }
+            else if (top > 1 && top < firstBelowTop)
+            {
+                firstBelowTop = top;
+                firstBelow = index;
+            }
+        }
+
+        return covering >= 0 ? covering : firstBelow;
+    }
+
+    internal void SetZoom(double zoom)
     {
         _fitToView = false;
         _zoom = Math.Clamp(zoom, 0.1, 6.0);
@@ -279,7 +497,7 @@ public partial class MainWindow : Window
 
     private void Rotate_Click(object sender, RoutedEventArgs e) => RotateClockwise();
 
-    private void RotateClockwise()
+    internal void RotateClockwise()
     {
         if (_doc is null) return;
 
@@ -307,7 +525,7 @@ public partial class MainWindow : Window
 
     // ---------- Navigation ----------
 
-    private void GoToPage(int page, bool scroll = true, bool syncChapters = true)
+    internal void GoToPage(int page, bool scroll = true, bool syncChapters = true)
     {
         if (_doc is null) return;
         page = Math.Clamp(page, 0, _doc.PageCount - 1);
@@ -316,7 +534,7 @@ public partial class MainWindow : Window
         {
             _currentPage = page;
             PageBox.Text = (page + 1).ToString();
-            if (scroll) Scroller.ScrollToVerticalOffset(OffsetOfPage(page));
+            if (scroll) ScrollToPage(page);
         }
         else
         {
@@ -371,7 +589,7 @@ public partial class MainWindow : Window
 
     private void ChapterClose_Click(object sender, RoutedEventArgs e) => SetChapterPaneVisible(false);
 
-    private void SetChapterPaneVisible(bool visible)
+    internal void SetChapterPaneVisible(bool visible)
     {
         if (_chapterPaneVisible == visible) return;
         _chapterPaneVisible = visible;
@@ -551,10 +769,8 @@ public partial class MainWindow : Window
             for (var p = active.Parent; p is not null; p = p.Parent)
                 p.IsExpanded = true;
 
-            // Keep suppress raised through UpdateLayout so TwoWay IsSelected
-            // realizing a container cannot re-enter SelectedItemChanged → GoToPage.
             if (_chapterPaneVisible)
-                BringChapterIntoView(active);
+                BringChapterIntoView();
         }
         finally
         {
@@ -577,12 +793,39 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BringChapterIntoView(ChapterItem item)
+    /// <summary>
+    /// Scrolls the sidebar to the active chapter, once the navigation has settled.
+    ///
+    /// This used to run inline on every page change: a forced layout of the whole tree plus
+    /// a walk over every outline node, repeated for each intermediate scroll position of a
+    /// jump. On a book with a chapter per page that was most of a second of frozen UI per
+    /// jump. Deferring coalesces a burst of navigation into one pass at the end.
+    /// </summary>
+    private void BringChapterIntoView()
     {
-        if (!ChapterTree.IsVisible) return;
-        ChapterTree.UpdateLayout();
-        if (FindChapterContainer(ChapterTree, item) is TreeViewItem tvi)
-            tvi.BringIntoView();
+        if (_chapterScrollQueued || !ChapterTree.IsVisible) return;
+        _chapterScrollQueued = true;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            _chapterScrollQueued = false;
+
+            var target = _selectedChapter;   // whatever navigation settled on
+            if (target is null || !_chapterPaneVisible || !ChapterTree.IsVisible) return;
+
+            // Keep suppression raised: realizing a container applies the TwoWay IsSelected
+            // binding, which would otherwise re-enter SelectedItemChanged → GoToPage.
+            _suppressChapterNav = true;
+            try
+            {
+                if (FindChapterContainer(ChapterTree, target) is TreeViewItem tvi)
+                    tvi.BringIntoView();
+            }
+            finally
+            {
+                _suppressChapterNav = false;
+            }
+        });
     }
 
     /// <summary>Best-effort container lookup; only realized (expanded) containers exist.</summary>
@@ -769,21 +1012,12 @@ public partial class MainWindow : Window
         if (_doc is null || _mode != ViewMode.Continuous || _items.Count == 0) return;
 
         // Track the topmost visible page.
-        double off = Scroller.VerticalOffset;
-        double acc = 0;
-        for (int i = 0; i < _items.Count; i++)
+        int top = TopVisiblePage();
+        if (top >= 0 && top != _currentPage)
         {
-            acc += _items[i].DisplayHeight + PageMargin;
-            if (acc > off + 1)
-            {
-                if (_currentPage != i)
-                {
-                    _currentPage = i;
-                    PageBox.Text = (i + 1).ToString();
-                    SyncChapterSelection();
-                }
-                break;
-            }
+            _currentPage = top;
+            PageBox.Text = (top + 1).ToString();
+            SyncChapterSelection();
         }
 
         ScheduleRender();
@@ -804,25 +1038,36 @@ public partial class MainWindow : Window
         _renderCts = new CancellationTokenSource();
     }
 
+    /// <summary>
+    /// Which pages are actually on screen, taken from the laid-out containers rather than
+    /// from scroll arithmetic — see <see cref="TopVisiblePage"/> for why the offset lies.
+    /// </summary>
     private (int First, int Last) VisibleRange()
     {
         if (_mode != ViewMode.Continuous)
             return (0, _items.Count - 1);
 
-        double top = Scroller.VerticalOffset;
-        double bottom = top + Scroller.ViewportHeight;
-        int first = 0, last = _items.Count - 1;
-        double acc = 0;
-        bool firstFound = false;
+        var panel = PagesPanel();
+        if (panel is null)
+            return (_currentPage, _currentPage);
 
-        for (int i = 0; i < _items.Count; i++)
+        double viewportHeight = Scroller.ViewportHeight;
+        int first = int.MaxValue, last = -1;
+
+        foreach (UIElement child in panel.Children)
         {
-            double h = _items[i].DisplayHeight + PageMargin;
-            if (!firstFound && acc + h > top) { first = i; firstFound = true; }
-            if (acc > bottom) { last = i - 1; break; }
-            acc += h;
+            if (child is not FrameworkElement element || !element.IsVisible) continue;
+            int index = PagesHost.ItemContainerGenerator.IndexFromContainer(child);
+            if (index < 0) continue;
+
+            double top = element.TransformToAncestor(Scroller).Transform(default).Y;
+            if (top + element.ActualHeight <= 0 || top >= viewportHeight) continue;   // cached, not shown
+
+            first = Math.Min(first, index);
+            last = Math.Max(last, index);
         }
-        return (first, last);
+
+        return last < 0 ? (_currentPage, _currentPage) : (first, last);
     }
 
     private async Task UpdateRenderedPagesAsync()

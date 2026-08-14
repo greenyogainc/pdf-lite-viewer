@@ -75,4 +75,5 @@ Détails consignés dans :
   <data name="NoChapters" xml:space="preserve"><value>Ce PDF ne contient aucun chapitre.</value></data>
   <data name="UntitledChapter" xml:space="preserve"><value>Chapitre sans titre</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>Impossible de charger les chapitres.</value></data>
+  <data name="OpeningFile" xml:space="preserve"><value>Ouverture…</value></data>
 </root>
