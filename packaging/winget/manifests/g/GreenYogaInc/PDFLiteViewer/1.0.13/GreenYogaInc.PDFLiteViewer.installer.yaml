@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: GreenYogaInc.PDFLiteViewer
+PackageVersion: 1.0.13
+MinimumOSVersion: 10.0.19041.0
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: PdfLiteViewer.exe
+    PortableCommandAlias: PdfLiteViewer
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/greenyogainc/pdf-lite-viewer/releases/download/v1.0.13/PdfLiteViewer-1.0.13-win-x64.zip
+    InstallerSha256: F235D4DBC2A6E00106ECFA225C805D8048202CE46EABCA2C041C33E17ABBBB18
+  - Architecture: arm64
+    InstallerUrl: https://github.com/greenyogainc/pdf-lite-viewer/releases/download/v1.0.13/PdfLiteViewer-1.0.13-win-arm64.zip
+    InstallerSha256: 8F4C0D7A21A0000F1DE28D6A120333DE3369BA65D2CAEFEDAC2D34DE303A13EF
+ManifestType: installer
+ManifestVersion: 1.6.0

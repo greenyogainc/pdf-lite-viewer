@@ -1,11 +1,18 @@
 """Generate all app icons (app.ico + MSIX Assets) from code.
 
-Design: white open book (two facing pages) on a deep-green rounded square —
-distinctive, brand-neutral, deliberately unlike any existing PDF-reader mark.
+Design: white open book (two facing pages) on a deep-green rounded square, with the
+Green Yoga Inc mark badged into the bottom-right corner — distinctive, brand-neutral,
+and deliberately unlike any existing PDF-reader mark. Nothing here may resemble another
+vendor's product mark: the 1.0.11 artwork embedded a lookalike of Adobe Acrobat's "A"
+and had to be pulled.
+
+The badge is omitted below 32px, where it would collapse into a grey smudge and blur
+the book underneath it.
 
 Usage: python tools/make_icons.py   (from the repo root)
 """
 from PIL import Image, ImageDraw
+import math
 import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,6 +22,35 @@ BG_BOT = (22, 70, 45)       # darker green
 PAGE = (255, 255, 255)
 PAGE_SHADE = (214, 230, 220)
 SPINE = (22, 70, 45)
+
+
+MARK = os.path.join(ROOT, "tools", "assets", "greenyoga-mark.png")
+BADGE_FRACTION = 0.30       # badge diameter, as a fraction of the icon
+BADGE_MIN_SIZE = 40         # below this the badge is dropped entirely
+
+# Tile geometry, as fractions of the icon — kept in sync with draw_icon().
+PAD_FRACTION = 0.06
+RADIUS_FRACTION = 0.20
+
+
+def _badge(px: int) -> Image.Image:
+    """The Green Yoga mark on a white disc — the mark is green, the tile is green."""
+    s = 4
+    W = px * s
+    badge = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    d = ImageDraw.Draw(badge)
+    d.ellipse([0, 0, W - 1, W - 1], fill=(255, 255, 255, 255))
+
+    mark = Image.open(MARK).convert("RGBA")
+    bbox = mark.split()[3].getbbox()
+    if bbox:
+        mark = mark.crop(bbox)
+    inner = int(W * 0.74)                       # padding so the disc reads as a plate
+    scale = inner / max(mark.size)
+    mark = mark.resize((max(1, int(mark.width * scale)),
+                        max(1, int(mark.height * scale))), Image.LANCZOS)
+    badge.paste(mark, ((W - mark.width) // 2, (W - mark.height) // 2), mark)
+    return badge.resize((px, px), Image.LANCZOS)
 
 
 def draw_icon(size: int) -> Image.Image:
@@ -71,7 +107,23 @@ def draw_icon(size: int) -> Image.Image:
             d.rectangle([cx + shade_w + int(W * 0.05), yo,
                          cx + half - int(W * 0.07), yo + lh], fill=(120, 165, 138))
 
-    return img.resize((size, size), Image.LANCZOS)
+    icon = img.resize((size, size), Image.LANCZOS)
+
+    if size >= BADGE_MIN_SIZE:
+        px = max(1, int(size * BADGE_FRACTION))
+        badge = _badge(px)
+        # Tuck the badge inside the tile's rounded bottom-right corner rather than letting
+        # it hang off the edge: the disc is white, so anything protruding past the green
+        # tile vanishes against a light background. The corner arc is centred at
+        # (1 - PAD - RADIUS) on both axes, so a disc of radius r stays within the tile
+        # when its centre is at most (RADIUS - r) from that centre.
+        r = BADGE_FRACTION / 2
+        arc = 1.0 - PAD_FRACTION - RADIUS_FRACTION
+        centre = arc + (RADIUS_FRACTION - r) / math.sqrt(2)
+        left = int((centre - r) * size)
+        icon.paste(badge, (left, left), badge)
+
+    return icon
 
 
 def main():
