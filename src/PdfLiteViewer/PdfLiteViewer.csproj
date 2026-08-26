@@ -28,7 +28,7 @@
     <PackageReference Include="PdfPig" Version="0.1.15" />
     <!-- Embedded browser for the About window's web support form only. Pinned exact:
          the loader ships in the package, so a silent minor bump must not slip in. -->
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="[1.0.4129.50]" />
   </ItemGroup>
 
   <ItemGroup>

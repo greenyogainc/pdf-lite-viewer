@@ -65,6 +65,13 @@ public partial class MainWindow : Window
     private bool _suppressChapterNav;
     private bool _chapterScrollQueued;
 
+    // One-shot marker for the chapter whose IsSelected was just set programmatically.
+    // Its container may not exist yet; when it realizes later (collapsed parent
+    // expanding, pane becoming visible) the TwoWay binding re-raises
+    // SelectedItemChanged outside any suppression window, and that echo must not
+    // navigate. See ChapterTree_SelectedItemChanged.
+    private ChapterItem? _pendingSelectionEcho;
+
     private readonly ItemsPanelTemplate _verticalPanel;
     private readonly ItemsPanelTemplate _horizontalPanel;
     private readonly ItemsPanelTemplate _virtualPanel;
@@ -770,7 +777,10 @@ public partial class MainWindow : Window
         if (_selectedChapter?.PageIndex == bestPage)
         {
             if (!_selectedChapter.IsSelected)
+            {
+                _pendingSelectionEcho = _selectedChapter;
                 _selectedChapter.IsSelected = true;
+            }
             return;
         }
 
@@ -783,6 +793,7 @@ public partial class MainWindow : Window
             if (_selectedChapter is not null)
                 _selectedChapter.IsSelected = false;
             _selectedChapter = active;
+            _pendingSelectionEcho = active;
             active.IsSelected = true;
 
             for (var p = active.Parent; p is not null; p = p.Parent)
@@ -870,21 +881,30 @@ public partial class MainWindow : Window
 
         // A container realized *after* a programmatic sync (expanding a collapsed parent,
         // or the pane becoming visible) applies the TwoWay IsSelected binding and raises
-        // this event with the already-selected chapter — outside any suppression window.
-        // Navigating then would yank the reader back to the chapter's first page. A real
-        // user pick always changes the selection, so it never arrives as _selectedChapter.
-        if (ReferenceEquals(item, _selectedChapter)) return;
-
-        _suppressChapterNav = true;
-        try
+        // this event with the already-active chapter — outside any suppression window.
+        // Navigating on that echo would yank the reader back to the chapter's first page.
+        // The echo is recognized by its one-shot marker rather than by identity alone:
+        // container recycling can drift the tree's selection off the model, and a real
+        // click on the active chapter arriving through that drift carries no marker.
+        bool isEcho = ReferenceEquals(item, _pendingSelectionEcho);
+        _pendingSelectionEcho = null;
+        if (ReferenceEquals(item, _selectedChapter))
         {
-            if (_selectedChapter is not null)
-                _selectedChapter.IsSelected = false;
-            _selectedChapter = item;
+            if (isEcho) return;
         }
-        finally
+        else
         {
-            _suppressChapterNav = false;
+            _suppressChapterNav = true;
+            try
+            {
+                if (_selectedChapter is not null)
+                    _selectedChapter.IsSelected = false;
+                _selectedChapter = item;
+            }
+            finally
+            {
+                _suppressChapterNav = false;
+            }
         }
 
         // Container, URI, external-file, and embedded-file nodes have no PageIndex:
@@ -1136,6 +1156,10 @@ public partial class MainWindow : Window
 
         foreach (int i in order)
         {
+            // A failed render falls through to the next iteration, so re-check the
+            // token here: a concurrent RebuildItems may have replaced _items with a
+            // shorter list, and indexing it would throw on the UI thread.
+            if (ct.IsCancellationRequested) return;
             var item = _items[i];
             int targetPx = Math.Min(MaxRenderPixelWidth, (int)Math.Round(item.DisplayWidth * dpiScale));
             if (targetPx < 8 || item.RenderedPixelWidth == targetPx)

@@ -145,13 +145,17 @@ public partial class AboutWindow : Window
                 var dataDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "PdfLiteViewer", "WebView2");
-                var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: dataDir);
 
+                // Field is assigned before any await so every failure path below can
+                // dispose through DropWebView - a half-initialized control must not
+                // survive as WebViewHost.Child, or each retry would leak another one.
                 var view = new WebView2();
+                _webView = view;
                 WebViewHost.Child = view;
+
+                var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: dataDir);
                 await view.EnsureCoreWebView2Async(environment);
                 ConfigureWebView(view.CoreWebView2);
-                _webView = view;
             }
 
             _webView.CoreWebView2.Navigate(SupportNavigationPolicy.SupportUrl);
@@ -159,6 +163,7 @@ public partial class AboutWindow : Window
         catch (WebView2RuntimeNotFoundException ex)
         {
             App.LogError(ex);
+            DropWebView();
             ShowSupportError(Strings.Get("SupportRuntimeMissing"));
         }
         catch (Exception ex)
@@ -184,7 +189,17 @@ public partial class AboutWindow : Window
         core.DownloadStarting += (_, e) => { e.Cancel = true; e.Handled = true; };
         core.NavigationCompleted += Core_NavigationCompleted;
         core.ProcessFailed += Core_ProcessFailed;
+        // A support form has no business asking for camera/mic/location/notifications.
+        core.PermissionRequested += (_, e) => { e.State = CoreWebView2PermissionState.Deny; e.Handled = true; };
+        // Frame (iframe) navigation is deliberately NOT fenced: the page is Green
+        // Yoga's own, and blocking third-party frames would silently break the form
+        // if the site ever adds an embedded captcha. Top-level and popups stay fenced.
     }
+
+    /// <summary>Set when the policy cancels a navigation, so its NavigationCompleted
+    /// (should the runtime report something other than OperationCanceled) cannot
+    /// replace the working form with the failure state.</summary>
+    private bool _policyCancelledNavigation;
 
     private void Core_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
@@ -194,10 +209,12 @@ public partial class AboutWindow : Window
                 break;
             case NavigationDecision.OpenInBrowser:
                 e.Cancel = true;
+                _policyCancelledNavigation = true;
                 OpenExternal(e.Uri);
                 break;
             default:
                 e.Cancel = true;
+                _policyCancelledNavigation = true;
                 break;
         }
     }
@@ -218,12 +235,15 @@ public partial class AboutWindow : Window
 
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        bool policyCancelled = _policyCancelledNavigation;
+        _policyCancelledNavigation = false;
+
         if (e.IsSuccess)
         {
             _supportLoadedOnce = true;
             ShowSupportState(SupportState.Loaded);
         }
-        else if (e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
+        else if (!policyCancelled && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
         {
             // Offline, DNS failure, TLS failure, server error — all land here.
             ShowSupportError(Strings.Get("SupportLoadFailed"));
@@ -232,9 +252,14 @@ public partial class AboutWindow : Window
 
     private void Core_ProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
-        // The browser process died under the form; drop the control so retry rebuilds it.
-        DropWebView();
-        ShowSupportError(Strings.Get("SupportLoadFailed"));
+        // The browser process died under the form. Tear down *outside* this COM event
+        // callback — disposing the control while its own event is on the stack risks
+        // re-entrancy during teardown — and drop it so retry rebuilds from scratch.
+        Dispatcher.BeginInvoke(() =>
+        {
+            DropWebView();
+            ShowSupportError(Strings.Get("SupportLoadFailed"));
+        });
     }
 
     private void DropWebView()

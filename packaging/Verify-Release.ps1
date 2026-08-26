@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Release-integrity gate: verifies version parity across sources and inspects the
     real packed artifacts (not just source files). Fails loudly on any mismatch.
@@ -65,6 +65,10 @@ if ($manifest.Package.Identity.Publisher -ne $expectedPublisher) { Fail "manifes
 $languages = @($manifest.Package.Resources.Resource | ForEach-Object { $_.Language }) | Where-Object { $_ }
 # English ships inside the neutral assembly; every other language needs a satellite dir.
 $satelliteLangs = @($languages | Where-Object { $_ -ne "en-US" })
+# A trimmed <Resources> list must not silently turn the satellite check into a no-op.
+if ($satelliteLangs.Count -lt 13) {
+    Fail "manifest lists only $($satelliteLangs.Count) non-English languages (expected 13) - satellite check would be meaningless"
+}
 
 $expectedAssets = @("StoreLogo.png", "Square150x150Logo.png", "Square44x44Logo.png",
                     "Square44x44Logo.targetsize-24_altform-unplated.png",
@@ -122,6 +126,13 @@ foreach ($msix in $MsixPaths) {
 }
 
 # ---- portable zip inspection ----------------------------------------------
+# The winget manifests ship from these zips, so "no zips given" must mean
+# "discover them", never "skip the section and still print PASSED".
+if ($Zips.Count -eq 0) {
+    $Zips = @(Get-ChildItem (Join-Path $PSScriptRoot "out\PdfLiteViewer-$ExpectedVersion-win-*.zip") -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName })
+    if ($Zips.Count -eq 0) { Fail "no portable zips found for $ExpectedVersion (run Build-Zip.ps1 for both RIDs)" }
+}
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($zip in $Zips) {
     if (-not (Test-Path $zip)) { Fail "missing zip: $zip"; continue }
@@ -153,9 +164,10 @@ if ($TagCheck) {
 # ---- optional winget check -------------------------------------------------
 if ($WingetCheck) {
     $wgDir = Join-Path $PSScriptRoot "winget\manifests\g\GreenYogaInc\PDFLiteViewer\$ExpectedVersion"
-    if (-not (Test-Path $wgDir)) { Fail "winget manifests missing: $wgDir" }
+    $wgInstaller = Join-Path $wgDir "GreenYogaInc.PDFLiteViewer.installer.yaml"
+    if (-not (Test-Path $wgInstaller)) { Fail "winget installer manifest missing: $wgInstaller" }
     else {
-        $installer = Get-Content (Join-Path $wgDir "GreenYogaInc.PDFLiteViewer.installer.yaml") -Raw
+        $installer = Get-Content $wgInstaller -Raw
         $okUrls = $true
         foreach ($ridName in @("x64", "arm64")) {
             if ($installer -notmatch [regex]::Escape("v$ExpectedVersion/PdfLiteViewer-$ExpectedVersion-win-$ridName.zip")) {
@@ -168,9 +180,9 @@ if ($WingetCheck) {
 
 Write-Host ""
 if ($failures.Count -gt 0) {
-    Write-Host "VERIFY FAILED — $($failures.Count) problem(s):" -ForegroundColor Red
+    Write-Host "VERIFY FAILED - $($failures.Count) problem(s):" -ForegroundColor Red
     $failures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
     exit 1
 }
-Write-Host "VERIFY PASSED — version $ExpectedVersion is consistent across sources and artifacts." -ForegroundColor Green
+Write-Host "VERIFY PASSED - version $ExpectedVersion is consistent across sources and artifacts." -ForegroundColor Green
 exit 0

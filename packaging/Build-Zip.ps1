@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds the portable zip for one RID, from a clean stage, with the exe at the
     archive root (which is what the winget NestedInstallerFiles entry requires).
@@ -52,11 +52,11 @@ $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
 try {
     $entries = $archive.Entries.FullName
     if ($entries -notcontains "PdfLiteViewer.exe") {
-        throw "PdfLiteViewer.exe is not at the archive root — winget NestedInstallerFiles would fail."
+        throw "PdfLiteViewer.exe is not at the archive root - winget NestedInstallerFiles would fail."
     }
     $residue = $entries | Where-Object { $_ -match '^\[Content_Types\]\.xml$|^AppxManifest\.xml$|^Assets/' }
     if ($residue) {
-        throw "MSIX residue in the zip: $($residue -join ', ') — stage was not clean."
+        throw "MSIX residue in the zip: $($residue -join ', ') - stage was not clean."
     }
 }
 finally {

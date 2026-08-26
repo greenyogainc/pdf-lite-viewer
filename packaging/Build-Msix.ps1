@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds PdfLiteViewer and packs it into an MSIX ready for Microsoft Store submission.
 
@@ -6,7 +6,7 @@
     1. dotnet publish (self-contained, single RID)
     2. Stages the publish output + Package.appxmanifest + Assets into an MSIX layout
     3. Packs with makeappx.exe (Windows SDK)
-    Store submissions do NOT need to be signed locally — the Store signs the package.
+    Store submissions do NOT need to be signed locally - the Store signs the package.
     For sideloading/testing, sign with signtool and a trusted cert (see -SignThumbprint).
 
 .EXAMPLE
@@ -38,7 +38,7 @@ if ($manifestVersion -ne "$projVersion.0") {
 Write-Host "== Version parity OK: $projVersion ==" -ForegroundColor Cyan
 
 Write-Host "== Publishing ($Configuration / $Rid) ==" -ForegroundColor Cyan
-# Clean the stage first — publish reuses this dir, and makeappx packs it wholesale, so
+# Clean the stage first - publish reuses this dir, and makeappx packs it wholesale, so
 # a language/DLL removed in a later build would otherwise linger and ship stale.
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 dotnet publish $proj -c $Configuration -r $Rid --self-contained true `
@@ -53,7 +53,7 @@ Copy-Item (Join-Path $PSScriptRoot "Assets") $stage -Recurse -Force
 # Debug symbols are dead weight in a Store submission.
 Get-ChildItem $stage -Filter *.pdb -Recurse | Remove-Item -Force
 
-# Stamp the CPU architecture into the package identity — without this, every
+# Stamp the CPU architecture into the package identity - without this, every
 # architecture produces the same full name (..._Neutral_) and the Store
 # rejects multi-arch submissions as duplicates.
 $arch = switch ($Rid) {

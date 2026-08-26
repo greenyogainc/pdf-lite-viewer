@@ -36,7 +36,10 @@ internal static class Program
         ScreenCapture.TrySetPerMonitorV2();
 
         var repoRoot = FindRepoRoot();
-        var outDir = args.Length > 0 ? Path.GetFullPath(args[0])
+        // First non-flag argument is the output directory; "--fill-check" must not
+        // become a directory name.
+        var dirArg = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
+        var outDir = dirArg is not null ? Path.GetFullPath(dirArg)
             : Path.Combine(repoRoot, "packaging", "store-screenshots");
         Directory.CreateDirectory(outDir);
 
@@ -198,6 +201,7 @@ internal static class Program
         // --- verify + captions --------------------------------------------
         int bad = VerifyAndWriteCaptions(outDir);
         // Keep the demo document with the set so the captures are reproducible byte-for-byte.
+        Directory.CreateDirectory(Path.Combine(outDir, "source"));
         File.Copy(demoPdf, Path.Combine(outDir, "source", "PdfLiteViewer-demo.pdf"), overwrite: true);
 
         Console.WriteLine(bad == 0
