@@ -44,15 +44,23 @@
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <!-- NoMirror: same reasoning as MainWindow's nav cluster. -->
                     <StackPanel Orientation="Horizontal" Style="{StaticResource NoMirror}">
-                        <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click"/>
+                        <!-- AutomationProperties.Name, not just ToolTip: a tooltip maps to UIA
+                             HelpText, which a screen reader announces after the (here glyph-only)
+                             name — leaving these buttons as "black left-pointing triangle". -->
+                        <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click"
+                                AutomationProperties.Name="{local:Loc PrevPageTooltip}"
+                                ToolTip="{local:Loc PrevPageTooltip}"/>
                         <TextBlock x:Name="PageLabel" Text="1 / 1" Foreground="{StaticResource BarFg}"
                                    VerticalAlignment="Center" MinWidth="60" TextAlignment="Center" FontSize="13"/>
-                        <Button Style="{StaticResource BarButton}" Content="▶" Click="Next_Click"/>
+                        <Button Style="{StaticResource BarButton}" Content="▶" Click="Next_Click"
+                                AutomationProperties.Name="{local:Loc NextPageTooltip}"
+                                ToolTip="{local:Loc NextPageTooltip}"/>
                     </StackPanel>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <TextBlock Text="{local:Loc PagesLabel}" Foreground="{StaticResource BarFg}" VerticalAlignment="Center" Margin="4,0" FontSize="13"/>
                     <!-- MinWidth (not fixed Width) so the combo grows to fit longer translations. -->
                     <ComboBox x:Name="RangeMode" MinWidth="120" VerticalContentAlignment="Center" FontSize="13"
+                              AutomationProperties.Name="{local:Loc PagesLabel}"
                               SelectionChanged="RangeMode_Changed">
                         <ComboBoxItem Content="{local:Loc RangeAll}" IsSelected="True"/>
                         <ComboBoxItem Content="{local:Loc RangeCurrent}"/>
@@ -61,16 +69,19 @@
                     <TextBox x:Name="RangeBox" Width="110" Margin="6,0,0,0" VerticalContentAlignment="Center"
                              Background="#FF1E1E1E" Foreground="{StaticResource BarFg}" BorderBrush="#FF4A4A4A"
                              FontSize="13" Visibility="Collapsed" ToolTip="{local:Loc RangeBoxTooltip}"
+                             AutomationProperties.Name="{local:Loc A11yPageRange}"
                              Style="{StaticResource NoMirror}"
                              TextChanged="RangeBox_Changed"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                     <TextBlock Text="{local:Loc PrinterLabel}" Foreground="{StaticResource BarFg}" VerticalAlignment="Center" Margin="4,0" FontSize="13"/>
                     <ComboBox x:Name="PrinterBox" MinWidth="170" MaxWidth="230" VerticalContentAlignment="Center"
-                              FontSize="13" SelectionChanged="Printer_Changed"/>
+                              FontSize="13" AutomationProperties.Name="{local:Loc PrinterLabel}"
+                              SelectionChanged="Printer_Changed"/>
                     <TextBlock Text="{local:Loc CopiesLabel}" Foreground="{StaticResource BarFg}" VerticalAlignment="Center" Margin="8,0,4,0" FontSize="13"/>
                     <TextBox x:Name="CopiesBox" Width="36" Text="1" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
                              Background="#FF1E1E1E" Foreground="{StaticResource BarFg}" BorderBrush="#FF4A4A4A" FontSize="13"
+                             AutomationProperties.Name="{local:Loc CopiesLabel}"
                              Style="{StaticResource NoMirror}"/>
                     <CheckBox x:Name="BwCheck" Content="{local:Loc BwCheckbox}" Foreground="{StaticResource BarFg}" VerticalAlignment="Center"
                               Margin="10,0,0,0" FontSize="13" Checked="Bw_Toggled" Unchecked="Bw_Toggled"

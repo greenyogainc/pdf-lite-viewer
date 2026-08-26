@@ -23,6 +23,13 @@ public partial class PrintPreviewWindow : Window
     private int _previewIndex;
     private CancellationTokenSource _cts = new();
     private bool _printing;
+    private int _showGeneration;
+
+    /// <summary>
+    /// Test seam: tools/HangProbe swaps in a render it can hold open, to prove an
+    /// overtaken page can no longer land on screen. Null — and unused — in production.
+    /// </summary>
+    internal Func<int, int, CancellationToken, Task<System.Windows.Media.Imaging.BitmapSource>>? RenderOverride;
 
     public PrintPreviewWindow(PdfDoc doc, int currentDocPage)
     {
@@ -125,8 +132,13 @@ public partial class PrintPreviewWindow : Window
         return result.ToList();
     }
 
-    private async Task ShowPageAsync()
+    internal async Task ShowPageAsync()
     {
+        // Every render has to prove on completion that it is still the one the window last
+        // asked for: the render lock is not FIFO, so an overtaken page can finish *after*
+        // the page that replaced it and paint itself over the newer one.
+        int generation = ++_showGeneration;
+
         if (_pages.Count == 0)
         {
             PageLabel.Text = string.Format(Strings.Get("PageLabelFormat"), 0, 0);
@@ -136,6 +148,9 @@ public partial class PrintPreviewWindow : Window
         _previewIndex = Math.Clamp(_previewIndex, 0, _pages.Count - 1);
         int pdfIndex = _pages[_previewIndex];
         PageLabel.Text = string.Format(Strings.Get("PageLabelFormat"), _previewIndex + 1, _pages.Count);
+
+        // Read the checkbox now, not after the await: by then it may belong to a later request.
+        bool grayscale = BwCheck.IsChecked == true;
 
         var (ptW, ptH) = _doc.GetDisplaySize(pdfIndex);
         var rect = PdfPrintPaginator.PlacePage(ptW, ptH, _paper);
@@ -147,11 +162,15 @@ public partial class PrintPreviewWindow : Window
         _cts.Cancel();
         _cts.Dispose();
         _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
         try
         {
             // ~1300px is plenty for an on-screen preview at any window size.
-            var bmp = await _doc.RenderPageAsync(pdfIndex, 1300, _cts.Token);
-            if (BwCheck.IsChecked == true)
+            var render = RenderOverride ?? _doc.RenderPageAsync;
+            var bmp = await render(pdfIndex, 1300, ct);
+            if (generation != _showGeneration || ct.IsCancellationRequested) return;
+
+            if (grayscale)
             {
                 var gray = new System.Windows.Media.Imaging.FormatConvertedBitmap(
                     bmp, System.Windows.Media.PixelFormats.Gray8, null, 0);
@@ -164,6 +183,16 @@ public partial class PrintPreviewWindow : Window
             }
         }
         catch (OperationCanceledException) { }
+        // A failed render must not fault the discarded task, and must not pass for a
+        // successful one: leave the previous image up rather than blanking the sheet.
+        catch (Exception ex) { App.LogError(ex); }
+    }
+
+    /// <summary>The one way the preview moves: buttons and keys both come through here.</summary>
+    internal Task StepPreviewAsync(int delta)
+    {
+        _previewIndex += delta;
+        return ShowPageAsync();     // clamps the index itself
     }
 
     private void Bw_Toggled(object sender, RoutedEventArgs e)
@@ -171,8 +200,8 @@ public partial class PrintPreviewWindow : Window
         if (IsLoaded) _ = ShowPageAsync();
     }
 
-    private void Prev_Click(object sender, RoutedEventArgs e) { _previewIndex--; _ = ShowPageAsync(); }
-    private void Next_Click(object sender, RoutedEventArgs e) { _previewIndex++; _ = ShowPageAsync(); }
+    private void Prev_Click(object sender, RoutedEventArgs e) { _ = StepPreviewAsync(-1); }
+    private void Next_Click(object sender, RoutedEventArgs e) { _ = StepPreviewAsync(+1); }
 
     private void RangeMode_Changed(object sender, SelectionChangedEventArgs e)
     {
@@ -196,9 +225,9 @@ public partial class PrintPreviewWindow : Window
         {
             case Key.Escape: Close(); break;
             case Key.Left:
-            case Key.PageUp: _previewIndex--; _ = ShowPageAsync(); break;
+            case Key.PageUp: _ = StepPreviewAsync(-1); break;
             case Key.Right:
-            case Key.PageDown: _previewIndex++; _ = ShowPageAsync(); break;
+            case Key.PageDown: _ = StepPreviewAsync(+1); break;
             case Key.Enter:
             case Key.P when Keyboard.Modifiers.HasFlag(ModifierKeys.Control): Print_Click(sender, e); break;
             default: return;

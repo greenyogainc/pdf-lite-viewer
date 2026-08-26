@@ -33,6 +33,16 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _renderTimer;
     private CancellationTokenSource _renderCts = new();
 
+    // The only indices whose PageItem.Image may be non-null, so eviction walks this
+    // window instead of every page — on a 50,000-page document the old full scan ran
+    // on the UI thread at every settled render update. Empty when _retainedHi < _retainedLo.
+    private int _retainedLo = int.MaxValue;
+    private int _retainedHi = -1;
+
+    /// <summary>Items visited by the last eviction pass — tools/HangProbe asserts this
+    /// stays proportional to the retained window, not the document.</summary>
+    internal int LastEvictionScanLength;
+
     /// <summary>Guards against a slow open being applied after a newer one started.</summary>
     private int _openGeneration;
 
@@ -288,6 +298,8 @@ public partial class MainWindow : Window
         }
 
         _items = items;
+        _retainedLo = int.MaxValue;   // fresh items carry no bitmaps yet
+        _retainedHi = -1;
 
         // Size the pages before the panel ever sees them. Handed a list of zero-height items,
         // a virtualizing panel concludes the whole document fits on screen and realizes every
@@ -514,11 +526,15 @@ public partial class MainWindow : Window
             _ => PDFtoImage.PdfRotation.Rotate0,
         };
 
-        foreach (var it in _items)
+        // Only the retained window can hold bitmaps; clearing just that keeps a rotate
+        // O(window) instead of O(document).
+        for (int i = _retainedLo; i <= _retainedHi; i++)
         {
-            it.Image = null;
-            it.RenderedPixelWidth = 0;
+            _items[i].Image = null;
+            _items[i].RenderedPixelWidth = 0;
         }
+        _retainedLo = int.MaxValue;
+        _retainedHi = -1;
 
         ApplyLayout(scrollToCurrent: false);
     }
@@ -540,6 +556,9 @@ public partial class MainWindow : Window
         {
             if (page == _currentPage && _items.Count > 0)
             {
+                // Still refresh the box: "0" or "99999" clamped to the current page must
+                // not leave the stale typed value standing next to the page count.
+                PageBox.Text = (page + 1).ToString();
                 if (syncChapters) SyncChapterSelection();
                 return;
             }
@@ -849,19 +868,23 @@ public partial class MainWindow : Window
         if (_suppressChapterNav) return;
         if (e.NewValue is not ChapterItem item) return;
 
-        if (!ReferenceEquals(item, _selectedChapter))
+        // A container realized *after* a programmatic sync (expanding a collapsed parent,
+        // or the pane becoming visible) applies the TwoWay IsSelected binding and raises
+        // this event with the already-selected chapter — outside any suppression window.
+        // Navigating then would yank the reader back to the chapter's first page. A real
+        // user pick always changes the selection, so it never arrives as _selectedChapter.
+        if (ReferenceEquals(item, _selectedChapter)) return;
+
+        _suppressChapterNav = true;
+        try
         {
-            _suppressChapterNav = true;
-            try
-            {
-                if (_selectedChapter is not null)
-                    _selectedChapter.IsSelected = false;
-                _selectedChapter = item;
-            }
-            finally
-            {
-                _suppressChapterNav = false;
-            }
+            if (_selectedChapter is not null)
+                _selectedChapter.IsSelected = false;
+            _selectedChapter = item;
+        }
+        finally
+        {
+            _suppressChapterNav = false;
         }
 
         // Container, URI, external-file, and embedded-file nodes have no PageIndex:
@@ -885,17 +908,22 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PdfLiteViewer.log"),
-                $"[dbg] preview failed: {ex}\n");
+            App.LogError(ex);
             Strings.ShowError(this, string.Format(Strings.Get("PrintPreviewFailedMessage"), ex.Message));
         }
     }
+
+    // ---------- About ----------
+
+    private void About_Click(object sender, RoutedEventArgs e) => ShowAbout();
+
+    internal void ShowAbout() => new AboutWindow { Owner = this }.ShowDialog();
 
     // ---------- Fullscreen ----------
 
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
-    private void ToggleFullscreen()
+    internal void ToggleFullscreen()
     {
         if (!_fullscreen)
         {
@@ -966,6 +994,7 @@ public partial class MainWindow : Window
             case Key.O when ctrl: ShowOpenDialog(); break;
             case Key.P when ctrl: ShowPrintPreview(); break;
             case Key.R when ctrl: RotateClockwise(); break;
+            case Key.F1: ShowAbout(); break;
             case Key.F4: SetChapterPaneVisible(!_chapterPaneVisible); break;
             case Key.F11: ToggleFullscreen(); break;
             case Key.Escape when _fullscreen: ToggleFullscreen(); break;
@@ -1082,15 +1111,21 @@ public partial class MainWindow : Window
         int lo = Math.Max(0, first - RenderBuffer);
         int hi = Math.Min(_items.Count - 1, last + RenderBuffer);
 
-        // Free bitmaps far outside the viewport.
-        for (int i = 0; i < _items.Count; i++)
+        // Free bitmaps far outside the viewport. Only the previously retained window can
+        // hold any, so the walk is proportional to that window — never to the document.
+        int keepLo = Math.Max(0, first - KeepBuffer);
+        int keepHi = Math.Min(_items.Count - 1, last + KeepBuffer);
+        LastEvictionScanLength = Math.Max(0, _retainedHi - _retainedLo + 1);
+        for (int i = _retainedLo; i <= _retainedHi; i++)
         {
-            if ((i < first - KeepBuffer || i > last + KeepBuffer) && _items[i].Image is not null)
-            {
-                _items[i].Image = null;
-                _items[i].RenderedPixelWidth = 0;
-            }
+            if (i >= keepLo && i <= keepHi) continue;
+            _items[i].Image = null;
+            _items[i].RenderedPixelWidth = 0;
         }
+        // Renders below land inside lo..hi ⊆ keepLo..keepHi, so this stays the superset
+        // of every index that can carry a bitmap after this pass.
+        _retainedLo = keepLo;
+        _retainedHi = keepHi;
 
         double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
 

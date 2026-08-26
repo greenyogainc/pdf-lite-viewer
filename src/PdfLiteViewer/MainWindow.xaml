@@ -214,26 +214,35 @@
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <!-- NoMirror: "◀"/"▶" must keep their literal meaning regardless of UI language. -->
                     <StackPanel Orientation="Horizontal" Style="{StaticResource NoMirror}">
-                        <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click" ToolTip="{local:Loc PrevPageTooltip}"/>
+                        <Button Style="{StaticResource BarButton}" Content="◀" Click="Prev_Click" ToolTip="{local:Loc PrevPageTooltip}"
+                                AutomationProperties.Name="{local:Loc PrevPageTooltip}"/>
                         <TextBox x:Name="PageBox" Width="44" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
                                  Background="#FF1E1E1E" Foreground="{StaticResource BarFg}" BorderBrush="#FF4A4A4A"
-                                 KeyDown="PageBox_KeyDown" FontSize="13"/>
+                                 KeyDown="PageBox_KeyDown" FontSize="13"
+                                 AutomationProperties.Name="{local:Loc A11yPageNumber}"/>
                         <TextBlock x:Name="PageCountText" Foreground="{StaticResource BarFg}"
                                    VerticalAlignment="Center" Margin="6,0" FontSize="13"/>
-                        <Button Style="{StaticResource BarButton}" Content="▶" Click="Next_Click" ToolTip="{local:Loc NextPageTooltip}"/>
+                        <Button Style="{StaticResource BarButton}" Content="▶" Click="Next_Click" ToolTip="{local:Loc NextPageTooltip}"
+                                AutomationProperties.Name="{local:Loc NextPageTooltip}"/>
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <Button Style="{StaticResource BarButton}" Content="−" Click="ZoomOut_Click" ToolTip="{local:Loc ZoomOutTooltip}"/>
+                    <Button Style="{StaticResource BarButton}" Content="−" Click="ZoomOut_Click" ToolTip="{local:Loc ZoomOutTooltip}"
+                            AutomationProperties.Name="{local:Loc ZoomOutTooltip}"/>
                     <TextBlock x:Name="ZoomText" Text="100%" Foreground="{StaticResource BarFg}"
                                VerticalAlignment="Center" MinWidth="44" TextAlignment="Center" FontSize="13"/>
-                    <Button Style="{StaticResource BarButton}" Content="+" Click="ZoomIn_Click" ToolTip="{local:Loc ZoomInTooltip}"/>
+                    <Button Style="{StaticResource BarButton}" Content="+" Click="ZoomIn_Click" ToolTip="{local:Loc ZoomInTooltip}"
+                            AutomationProperties.Name="{local:Loc ZoomInTooltip}"/>
                     <Button Style="{StaticResource BarButton}" Content="{local:Loc Fit}" Click="Fit_Click" ToolTip="{local:Loc FitTooltip}"/>
                     <Button Style="{StaticResource BarButton}" Content="{local:Loc Rotate}" Click="Rotate_Click" ToolTip="{local:Loc RotateTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <Button Style="{StaticResource BarButton}" Content="{local:Loc Print}" Click="Print_Click" ToolTip="{local:Loc PrintTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
-                    <Button Style="{StaticResource BarButton}" Content="⛶" Click="Fullscreen_Click" ToolTip="{local:Loc FullscreenTooltip}"/>
+                    <Button Style="{StaticResource BarButton}" Content="⛶" Click="Fullscreen_Click" ToolTip="{local:Loc FullscreenTooltip}"
+                            AutomationProperties.Name="{local:Loc FullscreenTooltip}"/>
+                    <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
+                    <Button Style="{StaticResource BarButton}" Content="ⓘ" Click="About_Click" ToolTip="{local:Loc AboutTooltip}"
+                            AutomationProperties.Name="{local:Loc About}"/>
                 </StackPanel>
             </DockPanel>
         </Border>
