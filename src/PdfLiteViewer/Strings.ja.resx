@@ -76,4 +76,31 @@
   <data name="UntitledChapter" xml:space="preserve"><value>無題の章</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>章を読み込めませんでした。</value></data>
   <data name="OpeningFile" xml:space="preserve"><value>開いています…</value></data>
+  <data name="A11yPageNumber" xml:space="preserve"><value>ページ番号</value></data>
+  <data name="A11yPageRange" xml:space="preserve"><value>ページ範囲</value></data>
+  <data name="About" xml:space="preserve"><value>バージョン情報</value></data>
+  <data name="AboutTooltip" xml:space="preserve"><value>PDF Lite Viewer のバージョン情報 (F1)</value></data>
+  <data name="AboutWindowTitle" xml:space="preserve"><value>PDF Lite Viewer のバージョン情報</value></data>
+  <data name="AboutVersionFormat" xml:space="preserve"><value>バージョン {0}</value></data>
+  <data name="AboutPublisher" xml:space="preserve"><value>発行元: Green Yoga Inc</value></data>
+  <data name="AboutLicenseLine" xml:space="preserve"><value>無料ソフトウェアであり、MIT ライセンスの下で公開されています。</value></data>
+  <data name="AboutPurpose" xml:space="preserve"><value>Windows 向けの無料で軽量な PDF ビューアーです。余分な機能は一切ありません。</value></data>
+  <data name="AboutBrandBlurb" xml:space="preserve"><value>Green Yoga Inc は、ウェルネスとテクノロジーに特化したソフトウェアやデジタルツールを開発しています。</value></data>
+  <data name="AboutLogoName" xml:space="preserve"><value>Green Yoga Inc のロゴ</value></data>
+  <data name="AboutWebsite" xml:space="preserve"><value>ウェブサイト</value></data>
+  <data name="AboutMoreSoftware" xml:space="preserve"><value>その他のソフトウェア</value></data>
+  <data name="AboutPrivacy" xml:space="preserve"><value>プライバシーポリシー</value></data>
+  <data name="AboutViewLicense" xml:space="preserve"><value>MIT ライセンス</value></data>
+  <data name="AboutHideLicense" xml:space="preserve"><value>ライセンスを非表示</value></data>
+  <data name="AboutContactSupport" xml:space="preserve"><value>サポートに問い合わせる</value></data>
+  <data name="AboutClose" xml:space="preserve"><value>閉じる</value></data>
+  <data name="AboutBack" xml:space="preserve"><value>戻る</value></data>
+  <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>{0} を Web ブラウザーで開きます</value></data>
+  <data name="SupportConsentText" xml:space="preserve"><value>Green Yoga Inc のサポートフォームはこのウィンドウ内で開きます。インターネット接続が必要で、Green Yoga Inc のプライバシーポリシーが適用されます。続行を選択するまで、何も読み込まれません。</value></data>
+  <data name="SupportLoadButton" xml:space="preserve"><value>サポートフォームを読み込む</value></data>
+  <data name="SupportOpenInBrowser" xml:space="preserve"><value>Web ブラウザーで開く</value></data>
+  <data name="SupportLoading" xml:space="preserve"><value>サポートフォームを読み込んでいます…</value></data>
+  <data name="SupportLoadFailed" xml:space="preserve"><value>サポートフォームを読み込めませんでした。インターネット接続を確認してもう一度お試しいただくか、Web ブラウザーで開いてください。</value></data>
+  <data name="SupportRuntimeMissing" xml:space="preserve"><value>組み込みブラウザー (Microsoft Edge WebView2) はこのデバイスでは利用できません。代わりに Web ブラウザーでサポートフォームを開くことができます。</value></data>
+  <data name="SupportRetry" xml:space="preserve"><value>再試行</value></data>
 </root>

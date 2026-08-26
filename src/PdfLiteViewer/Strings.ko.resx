@@ -76,4 +76,31 @@
   <data name="UntitledChapter" xml:space="preserve"><value>제목 없는 장</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>장을 불러올 수 없습니다.</value></data>
   <data name="OpeningFile" xml:space="preserve"><value>여는 중…</value></data>
+  <data name="A11yPageNumber" xml:space="preserve"><value>페이지 번호</value></data>
+  <data name="A11yPageRange" xml:space="preserve"><value>페이지 범위</value></data>
+  <data name="About" xml:space="preserve"><value>정보</value></data>
+  <data name="AboutTooltip" xml:space="preserve"><value>PDF Lite Viewer 정보 (F1)</value></data>
+  <data name="AboutWindowTitle" xml:space="preserve"><value>PDF Lite Viewer 정보</value></data>
+  <data name="AboutVersionFormat" xml:space="preserve"><value>버전 {0}</value></data>
+  <data name="AboutPublisher" xml:space="preserve"><value>제공: Green Yoga Inc</value></data>
+  <data name="AboutLicenseLine" xml:space="preserve"><value>무료 소프트웨어이며 MIT 라이선스에 따라 배포됩니다.</value></data>
+  <data name="AboutPurpose" xml:space="preserve"><value>Windows용 무료 경량 PDF 뷰어입니다. 불필요한 기능이 없습니다.</value></data>
+  <data name="AboutBrandBlurb" xml:space="preserve"><value>Green Yoga Inc는 웰니스와 기술을 위한 집중형 소프트웨어와 디지털 도구를 만듭니다.</value></data>
+  <data name="AboutLogoName" xml:space="preserve"><value>Green Yoga Inc 로고</value></data>
+  <data name="AboutWebsite" xml:space="preserve"><value>웹사이트</value></data>
+  <data name="AboutMoreSoftware" xml:space="preserve"><value>다른 소프트웨어</value></data>
+  <data name="AboutPrivacy" xml:space="preserve"><value>개인정보 처리방침</value></data>
+  <data name="AboutViewLicense" xml:space="preserve"><value>MIT 라이선스</value></data>
+  <data name="AboutHideLicense" xml:space="preserve"><value>라이선스 숨기기</value></data>
+  <data name="AboutContactSupport" xml:space="preserve"><value>지원팀에 문의</value></data>
+  <data name="AboutClose" xml:space="preserve"><value>닫기</value></data>
+  <data name="AboutBack" xml:space="preserve"><value>뒤로</value></data>
+  <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>웹 브라우저에서 {0}을(를) 엽니다</value></data>
+  <data name="SupportConsentText" xml:space="preserve"><value>Green Yoga Inc 지원 양식이 이 창 안에서 열립니다. 인터넷 연결이 필요하며 Green Yoga Inc 개인정보 처리방침이 적용됩니다. 계속하기를 선택하기 전까지는 아무것도 로드되지 않습니다.</value></data>
+  <data name="SupportLoadButton" xml:space="preserve"><value>지원 양식 불러오기</value></data>
+  <data name="SupportOpenInBrowser" xml:space="preserve"><value>웹 브라우저에서 열기</value></data>
+  <data name="SupportLoading" xml:space="preserve"><value>지원 양식을 불러오는 중…</value></data>
+  <data name="SupportLoadFailed" xml:space="preserve"><value>지원 양식을 불러올 수 없습니다. 인터넷 연결을 확인한 후 다시 시도하거나 웹 브라우저에서 열어 보세요.</value></data>
+  <data name="SupportRuntimeMissing" xml:space="preserve"><value>이 장치에서는 내장 브라우저(Microsoft Edge WebView2)를 사용할 수 없습니다. 대신 웹 브라우저에서 지원 양식을 열 수 있습니다.</value></data>
+  <data name="SupportRetry" xml:space="preserve"><value>다시 시도</value></data>
 </root>

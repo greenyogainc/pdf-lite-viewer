@@ -6,7 +6,9 @@ using System.Windows;
 
 // tools/HangProbe drives the real window through the operations that used to block
 // the UI thread; it needs the internal entry points those operations sit behind.
+// tools/StoreShots drives the same windows to produce the tracked Store screenshots.
 [assembly: InternalsVisibleTo("HangProbe")]
+[assembly: InternalsVisibleTo("StoreShots")]
 
 [assembly:ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located
