@@ -103,6 +103,17 @@ internal static class Program
         results.Add(await watch.MeasureAsync("10 jumps with chapters open", Ms(400),
             () => JumpAroundAsync(window, pages)));
 
+        // Eviction must walk the retained window, never the whole document — the old
+        // full scan cost O(pages) on the UI thread at every settled render update.
+        await Task.Delay(300);                       // let the deferred render pass run
+        await watch.SettleAsync();
+        var evictionChecks = new List<Check>
+        {
+            new("eviction scan bounded (continuous)",
+                window.LastEvictionScanLength > 0 && window.LastEvictionScanLength <= 200,
+                $"last eviction pass visited {window.LastEvictionScanLength} slot(s) of {pages} pages"),
+        };
+
         results.Add(await watch.MeasureAsync("switch to facing mode", Ms(400),
             () => window.SetMode(ViewMode.Facing)));
 
@@ -134,6 +145,9 @@ internal static class Program
 
         var checks = await LayoutChecks.RunAsync(window, pages, watch.SettleAsync);
         checks.AddRange(printerChecks);
+        checks.AddRange(evictionChecks);
+        checks.AddRange(await PreviewRaceChecks.RunAsync(doc));
+        checks.AddRange(await AboutChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
