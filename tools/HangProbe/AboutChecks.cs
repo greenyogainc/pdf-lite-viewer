@@ -166,6 +166,12 @@ internal static class AboutChecks
                 about.SupportRetryBtn.IsVisible && about.SupportErrorBrowserBtn.IsVisible &&
                 about.SupportStatusText.Text == Strings.Get("SupportLoadFailed"),
                 $"status text: '{about.SupportStatusText.Text}'"));
+
+            // A failed init must leave nothing behind: a half-initialized control kept
+            // as WebViewHost.Child would leak once per retry click.
+            checks.Add(new Check("support: failed init leaves no webview behind",
+                about.WebViewHost.Child is null && about.WebViewForTest is null,
+                "control disposed and detached after the failure path"));
         }
         finally
         {

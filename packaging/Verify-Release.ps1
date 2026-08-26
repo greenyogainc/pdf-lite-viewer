@@ -21,8 +21,8 @@
          v<version> URLs.
 
 .EXAMPLE
-    .\packaging\Verify-Release.ps1
-    .\packaging\Verify-Release.ps1 -Zips (Get-ChildItem packaging\out\*.zip).FullName -TagCheck -WingetCheck
+    .\packaging\Verify-Release.ps1                        # MSIX + auto-discovered zips for this version
+    .\packaging\Verify-Release.ps1 -TagCheck -WingetCheck # after tagging / adding winget manifests
 #>
 param(
     [string]$ExpectedVersion = "",
@@ -65,10 +65,15 @@ if ($manifest.Package.Identity.Publisher -ne $expectedPublisher) { Fail "manifes
 $languages = @($manifest.Package.Resources.Resource | ForEach-Object { $_.Language }) | Where-Object { $_ }
 # English ships inside the neutral assembly; every other language needs a satellite dir.
 $satelliteLangs = @($languages | Where-Object { $_ -ne "en-US" })
-# A trimmed <Resources> list must not silently turn the satellite check into a no-op.
-if ($satelliteLangs.Count -lt 13) {
-    Fail "manifest lists only $($satelliteLangs.Count) non-English languages (expected 13) - satellite check would be meaningless"
-}
+# The manifest's language list must agree with what the csproj actually ships — a
+# trimmed <Resources> list must not silently turn the satellite check into a no-op.
+$csprojLangs = @((($csproj.Project.PropertyGroup |
+    Where-Object { $_.SatelliteResourceLanguages } |
+    Select-Object -First 1).SatelliteResourceLanguages -split ';') |
+    Where-Object { $_ -and $_ -ne 'en' })
+if ($satelliteLangs.Count -ne $csprojLangs.Count) {
+    Fail "manifest lists $($satelliteLangs.Count) non-English languages but csproj SatelliteResourceLanguages ships $($csprojLangs.Count)"
+} else { Ok "manifest/csproj language lists agree ($($satelliteLangs.Count) satellites)" }
 
 $expectedAssets = @("StoreLogo.png", "Square150x150Logo.png", "Square44x44Logo.png",
                     "Square44x44Logo.targetsize-24_altform-unplated.png",

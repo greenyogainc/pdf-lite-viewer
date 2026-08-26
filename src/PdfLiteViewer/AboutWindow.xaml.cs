@@ -25,6 +25,13 @@ public partial class AboutWindow : Window
 
     private WebView2? _webView;
     private bool _supportLoadedOnce;
+    private bool _supportLoadInFlight;
+
+    /// <summary>NavigationId of a navigation this window's policy cancelled, so its own
+    /// NavigationCompleted (should the runtime report something other than
+    /// OperationCanceled) cannot replace the working form with the failure state —
+    /// while an unrelated navigation's real failure still reports normally.</summary>
+    private ulong? _policyCancelledNavigationId;
 
     /// <summary>Test access (tools/StoreShots submit check) to the live web view.</summary>
     internal WebView2? WebViewForTest => _webView;
@@ -132,6 +139,12 @@ public partial class AboutWindow : Window
     /// the Failed state, which offers retry and the default-browser fallback.</summary>
     internal async Task LoadSupportAsync()
     {
+        // Re-entry during the init awaits would see a non-null _webView with no core
+        // yet. Unreachable from the UI (the buttons are hidden while loading) but the
+        // test seams call this directly.
+        if (_supportLoadInFlight) return;
+        _supportLoadInFlight = true;
+        _policyCancelledNavigationId = null;
         ShowSupportState(SupportState.Loading);
         try
         {
@@ -172,6 +185,10 @@ public partial class AboutWindow : Window
             DropWebView();
             ShowSupportError(Strings.Get("SupportLoadFailed"));
         }
+        finally
+        {
+            _supportLoadInFlight = false;
+        }
     }
 
     private void ConfigureWebView(CoreWebView2 core)
@@ -196,11 +213,6 @@ public partial class AboutWindow : Window
         // if the site ever adds an embedded captcha. Top-level and popups stay fenced.
     }
 
-    /// <summary>Set when the policy cancels a navigation, so its NavigationCompleted
-    /// (should the runtime report something other than OperationCanceled) cannot
-    /// replace the working form with the failure state.</summary>
-    private bool _policyCancelledNavigation;
-
     private void Core_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
         switch (SupportNavigationPolicy.Decide(e.Uri))
@@ -209,12 +221,12 @@ public partial class AboutWindow : Window
                 break;
             case NavigationDecision.OpenInBrowser:
                 e.Cancel = true;
-                _policyCancelledNavigation = true;
+                _policyCancelledNavigationId = e.NavigationId;
                 OpenExternal(e.Uri);
                 break;
             default:
                 e.Cancel = true;
-                _policyCancelledNavigation = true;
+                _policyCancelledNavigationId = e.NavigationId;
                 break;
         }
     }
@@ -235,8 +247,9 @@ public partial class AboutWindow : Window
 
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        bool policyCancelled = _policyCancelledNavigation;
-        _policyCancelledNavigation = false;
+        bool policyCancelled = _policyCancelledNavigationId == e.NavigationId;
+        if (policyCancelled)
+            _policyCancelledNavigationId = null;
 
         if (e.IsSuccess)
         {
@@ -252,9 +265,13 @@ public partial class AboutWindow : Window
 
     private void Core_ProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
-        // The browser process died under the form. Tear down *outside* this COM event
-        // callback — disposing the control while its own event is on the stack risks
-        // re-entrancy during teardown — and drop it so retry rebuilds from scratch.
+        // GPU/utility/frame-helper exits recover on their own; rebuilding for those
+        // would throw away a half-filled form. Only a dead browser or main renderer
+        // warrants tearing down — and *outside* this COM event callback, since
+        // disposing the control while its own event is on the stack risks re-entrancy.
+        if (e.ProcessFailedKind is not (CoreWebView2ProcessFailedKind.BrowserProcessExited
+            or CoreWebView2ProcessFailedKind.RenderProcessExited))
+            return;
         Dispatcher.BeginInvoke(() =>
         {
             DropWebView();
@@ -268,6 +285,7 @@ public partial class AboutWindow : Window
         _webView?.Dispose();
         _webView = null;
         _supportLoadedOnce = false;
+        _policyCancelledNavigationId = null;
     }
 
     private void ShowSupportState(SupportState state)

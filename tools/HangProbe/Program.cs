@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using PdfLiteViewer;
 
@@ -114,6 +115,28 @@ internal static class Program
                 $"last eviction pass visited {window.LastEvictionScanLength} slot(s) of {pages} pages"),
         };
 
+        // Sidebar scrolling recycles chapter containers; the re-realized IsSelected
+        // bindings re-raise SelectedItemChanged for the already-active chapter, and
+        // those echoes must never move the document (they used to GoToPage the reader
+        // back to the chapter's first page).
+        window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 137);
+        await watch.SettleAsync();
+        double offsetBefore = window.Scroller.VerticalOffset;
+        if (FindScroller(window.ChapterTree) is ScrollViewer treeScroller)
+        {
+            for (int round = 0; round < 3; round++)
+            {
+                treeScroller.ScrollToEnd();
+                await watch.SettleAsync();
+                treeScroller.ScrollToHome();
+                await watch.SettleAsync();
+            }
+            double offsetAfter = window.Scroller.VerticalOffset;
+            evictionChecks.Add(new Check("sidebar scrolling never moves the document",
+                Math.Abs(offsetAfter - offsetBefore) < 1.0,
+                $"document offset {offsetBefore:F1} -> {offsetAfter:F1} after 3 sidebar scroll rounds"));
+        }
+
         results.Add(await watch.MeasureAsync("switch to facing mode", Ms(400),
             () => window.SetMode(ViewMode.Facing)));
 
@@ -214,6 +237,19 @@ internal static class Program
         Console.WriteLine($"screenshot: {Shots.Capture(window, "single-zoomed")}");
         Console.WriteLine($"           zoomed panning: scrollable {window.Scroller.ScrollableWidth:F0}x" +
                           $"{window.Scroller.ScrollableHeight:F0}px");
+    }
+
+    /// <summary>The ScrollViewer inside a control's template, or null before layout.</summary>
+    private static ScrollViewer? FindScroller(DependencyObject root)
+    {
+        int count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer viewer) return viewer;
+            if (FindScroller(child) is { } nested) return nested;
+        }
+        return null;
     }
 
     private static TimeSpan Ms(int ms) => TimeSpan.FromMilliseconds(ms);

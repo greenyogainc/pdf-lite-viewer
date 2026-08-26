@@ -68,7 +68,7 @@ After the GitHub release exists (so the URLs are immutable):
 Run after building, and again after tagging:
 
 ```powershell
-.\packaging\Verify-Release.ps1 -Zips (Get-ChildItem packaging\out\PdfLiteViewer-*-win-*.zip).FullName
+.\packaging\Verify-Release.ps1                            # MSIX + this version's zips (auto-discovered)
 .\packaging\Verify-Release.ps1 -TagCheck -WingetCheck     # once the tag + winget manifests exist
 ```
 
