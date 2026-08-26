@@ -74,8 +74,12 @@ Run after building, and again after tagging:
 
 It unpacks each MSIX and checks the embedded identity/version/architecture, the
 executable's FileVersion/ProductVersion, tile assets, all language satellites,
-and the WebView2 loader; for zips it checks root layout, MSIX residue, and
-satellites. Non-zero exit means do not ship.
+and the WebView2 loader; for zips it checks root layout, MSIX residue,
+satellites, and the embedded executable. It also proves **provenance**: every
+executable must be stamped with the current git HEAD and the tree must be
+clean — so artifacts built before the last commit can never pass. For a
+deliberate pre-commit build only, `-SkipProvenance` bypasses that one check.
+Non-zero exit means do not ship.
 
 Also run the app-level gates before any submission:
 

@@ -14,8 +14,13 @@
            - a satellite PdfLiteViewer.resources.dll for every shipped language
            - the WebView2 loader and managed assemblies
            - the artifact filename version matches the embedded package version
-      3. -Zips: each portable zip has the exe at the archive root, carries no MSIX
-         residue, ships all satellites + WebView2Loader.dll, and its name matches.
+           - provenance: the +<sha> in ProductVersion equals git HEAD, and the
+             working tree is clean (-SkipProvenance bypasses, for deliberate
+             pre-commit builds only)
+      3. Zips (auto-discovered for the version when -Zips is omitted; both RIDs
+         required): exe at the archive root, no MSIX residue, all satellites +
+         WebView2Loader.dll, name matches, and the embedded exe's version and
+         provenance check out too.
       4. -TagCheck: HEAD carries tag v<version>.
       5. -WingetCheck: packaging/winget manifests for <version> exist and reference
          v<version> URLs.
@@ -49,9 +54,18 @@ try { $headSha = (git -C $root rev-parse HEAD).Trim() } catch { }
 function Test-Provenance([string]$label, [string]$productVersion) {
     if ($SkipProvenance) { return }
     $sha = ($productVersion -split '\+')[1]
-    if (-not $sha) { Fail "${label}: executable carries no source revision" }
-    elseif ($headSha -and $sha -ne $headSha) { Fail "${label}: built from $sha but HEAD is $headSha - rebuild from the current commit" }
+    if (-not $headSha) { Fail "${label}: cannot resolve HEAD - provenance unverifiable (pass -SkipProvenance to bypass deliberately)" }
+    elseif (-not $sha) { Fail "${label}: executable carries no source revision" }
+    elseif ($sha -ne $headSha) { Fail "${label}: built from $sha but HEAD is $headSha - rebuild from the current commit (or -SkipProvenance for a deliberate pre-commit build)" }
     else { Ok "${label}: built from HEAD ($sha)" }
+}
+
+# A dirty tree defeats provenance entirely: the sha stamps HEAD even when the build
+# included uncommitted edits - exactly how 1.0.15 binaries once carried 1.0.14's sha.
+if (-not $SkipProvenance) {
+    $dirty = ""
+    try { $dirty = (git -C $root status --porcelain) -join "`n" } catch { }
+    if ($dirty) { Fail "working tree has uncommitted changes - artifacts cannot be tied to a commit (commit first, or pass -SkipProvenance)" }
 }
 
 # ---- authoritative version -------------------------------------------------
@@ -87,7 +101,7 @@ $csprojLangs = @((($csproj.Project.PropertyGroup |
     Where-Object { $_.SatelliteResourceLanguages } |
     Select-Object -First 1).SatelliteResourceLanguages -split ';') |
     Where-Object { $_ -and $_ -ne 'en' })
-$langDiff = Compare-Object ($satelliteLangs | Sort-Object) ($csprojLangs | Sort-Object)
+$langDiff = Compare-Object @($satelliteLangs | Sort-Object) @($csprojLangs | Sort-Object)
 if ($langDiff) {
     Fail "manifest/csproj language lists differ: $(($langDiff | ForEach-Object { "$($_.SideIndicator)$($_.InputObject)" }) -join ' ')"
 } else { Ok "manifest/csproj language lists agree ($($satelliteLangs.Count) satellites)" }

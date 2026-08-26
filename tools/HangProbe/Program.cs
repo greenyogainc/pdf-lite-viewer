@@ -146,13 +146,16 @@ internal static class Program
                 $"{echoes} echo(es) absorbed; document offset {offsetBefore:F1} -> {offsetAfter:F1}"));
 
             // The inverse must keep working: picking a *different* chapter navigates.
+            // selectedIndex + 5 sits inside the viewport (its top is at
+            // selectedIndex - 5), so the target's container is realized regardless
+            // of the panel's cache configuration.
             var roots = window.ChapterTree.ItemsSource as List<ChapterItem>;
-            var target = roots is not null && selectedIndex - 7 >= 0 && selectedIndex - 7 < roots.Count
-                ? roots[selectedIndex - 7] : null;
+            var target = roots is not null && selectedIndex + 5 < roots.Count
+                ? roots[selectedIndex + 5] : null;
             if (target?.PageIndex is int targetPage)
             {
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
-                target.IsSelected = true;   // its container is realized (we just scrolled here)
+                target.IsSelected = true;
                 await watch.SettleAsync();
                 evictionChecks.Add(new Check("selecting a different chapter navigates",
                     int.TryParse(window.PageBox.Text, out int landed) && landed == targetPage + 1,
@@ -166,7 +169,11 @@ internal static class Program
         }
         else
         {
+            // Both checks must appear in the tally — a missing scroller fails them
+            // explicitly instead of silently shrinking the check count.
             evictionChecks.Add(new Check("sidebar scrolling never moves the document", false,
+                "chapter tree scroller not found - the check could not run"));
+            evictionChecks.Add(new Check("selecting a different chapter navigates", false,
                 "chapter tree scroller not found - the check could not run"));
         }
 
