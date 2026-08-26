@@ -18,8 +18,20 @@ displays them well, and that's it.
   show a simple empty state.
 - Zoom (`Ctrl` `+`/`−`/`0`, `Ctrl`+wheel), fit-to-view, **rotate** (`Ctrl+R` or toolbar), page navigation, go-to-page
 - Open via dialog (`Ctrl+O`), drag & drop, or double-click a `.pdf` (file association)
-- Print (`Ctrl+P`) with page-range support, via the standard Windows print dialog
+- Print (`Ctrl+P`) through a built-in preview: printer picker, page ranges, copies,
+  black & white and draft modes — the job is sent directly, no second OS dialog
+- **About & support** (`F1`) — version and license info, plus a built-in web support
+  form (see *Privacy & network use* below)
 - That's the whole feature list, by design.
+
+## Privacy & network use
+
+PDF viewing is entirely local: documents never leave your machine and the app
+sends no telemetry. The one thing that goes online is **Contact support** in the
+About window — after an explicit click it loads the Green Yoga Inc support form
+(`greenyogainc.com`) in an embedded browser view, and that page may use the
+website's own analytics; the [Green Yoga Inc privacy policy](https://greenyogainc.com/privacy/)
+applies to it. Nothing is loaded until you ask.
 
 ## Keyboard reference
 
@@ -27,6 +39,7 @@ displays them well, and that's it.
 |---|---|
 | `Ctrl+O` | Open PDF |
 | `Ctrl+P` | Print |
+| `F1` | About & support |
 | `F4` | Show / hide chapter sidebar |
 | `1` / `2` / `3` | Single / Facing / Continuous mode |
 | `F11` (`Esc` to exit) | Full screen |
@@ -47,8 +60,8 @@ dotnet run --project src\PdfLiteViewer
 ## Testing
 
 ```powershell
-dotnet run --project tools\HangProbe -- 3000        # UI responsiveness + layout
-dotnet run --project tools\ChapterSmoke -- tools\fixtures\*.pdf
+dotnet run --project tools\HangProbe -- 3000        # UI responsiveness + layout + regressions
+dotnet run --project tools\ChapterSmoke -- tools\fixtures\*.pdf   # the tool expands the glob itself
 ```
 
 `HangProbe` is the regression guard against frozen-window bugs. It generates a
