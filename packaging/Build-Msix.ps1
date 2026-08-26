@@ -25,6 +25,18 @@ $proj = Join-Path $root "src\PdfLiteViewer\PdfLiteViewer.csproj"
 $outDir = Join-Path $PSScriptRoot "out"
 $stage = Join-Path $outDir "layout-$Rid"
 
+# Version parity gate: the csproj is the one authoritative release version. 1.0.14
+# shipped with a 1.0.13 executable inside a 1.0.14 package because nothing checked;
+# now a drifted manifest fails the build before anything is packed.
+[xml]$projXml = Get-Content $proj
+$projVersion = ($projXml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+[xml]$manifestXml = Get-Content (Join-Path $PSScriptRoot "Package.appxmanifest")
+$manifestVersion = $manifestXml.Package.Identity.Version
+if ($manifestVersion -ne "$projVersion.0") {
+    throw "Version mismatch: csproj <Version> is $projVersion but Package.appxmanifest Identity Version is $manifestVersion (expected $projVersion.0). Fix one before packing."
+}
+Write-Host "== Version parity OK: $projVersion ==" -ForegroundColor Cyan
+
 Write-Host "== Publishing ($Configuration / $Rid) ==" -ForegroundColor Cyan
 # Clean the stage first — publish reuses this dir, and makeappx packs it wholesale, so
 # a language/DLL removed in a later build would otherwise linger and ship stale.
