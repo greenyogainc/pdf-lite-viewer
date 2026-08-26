@@ -76,4 +76,31 @@
   <data name="UntitledChapter" xml:space="preserve"><value>فصل بلا عنوان</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>تعذر تحميل الفصول.</value></data>
   <data name="OpeningFile" xml:space="preserve"><value>جارٍ الفتح…</value></data>
+  <data name="A11yPageNumber" xml:space="preserve"><value>رقم الصفحة</value></data>
+  <data name="A11yPageRange" xml:space="preserve"><value>نطاق الصفحات</value></data>
+  <data name="About" xml:space="preserve"><value>حول</value></data>
+  <data name="AboutTooltip" xml:space="preserve"><value>حول PDF Lite Viewer (F1)</value></data>
+  <data name="AboutWindowTitle" xml:space="preserve"><value>حول PDF Lite Viewer</value></data>
+  <data name="AboutVersionFormat" xml:space="preserve"><value>الإصدار {0}</value></data>
+  <data name="AboutPublisher" xml:space="preserve"><value>بواسطة Green Yoga Inc</value></data>
+  <data name="AboutLicenseLine" xml:space="preserve"><value>برنامج مجاني، مُتاح بموجب ترخيص MIT.</value></data>
+  <data name="AboutPurpose" xml:space="preserve"><value>عارض PDF مجاني وخفيف لنظام Windows، بلا حشو زائد.</value></data>
+  <data name="AboutBrandBlurb" xml:space="preserve"><value>تبتكر Green Yoga Inc برامج وأدوات رقمية مركّزة في مجالي العافية والتقنية.</value></data>
+  <data name="AboutLogoName" xml:space="preserve"><value>شعار Green Yoga Inc</value></data>
+  <data name="AboutWebsite" xml:space="preserve"><value>الموقع الإلكتروني</value></data>
+  <data name="AboutMoreSoftware" xml:space="preserve"><value>المزيد من البرامج</value></data>
+  <data name="AboutPrivacy" xml:space="preserve"><value>سياسة الخصوصية</value></data>
+  <data name="AboutViewLicense" xml:space="preserve"><value>ترخيص MIT</value></data>
+  <data name="AboutHideLicense" xml:space="preserve"><value>إخفاء الترخيص</value></data>
+  <data name="AboutContactSupport" xml:space="preserve"><value>التواصل مع الدعم</value></data>
+  <data name="AboutClose" xml:space="preserve"><value>إغلاق</value></data>
+  <data name="AboutBack" xml:space="preserve"><value>رجوع</value></data>
+  <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>يفتح {0} في متصفح الويب</value></data>
+  <data name="SupportConsentText" xml:space="preserve"><value>يُفتح نموذج دعم Green Yoga Inc داخل هذه النافذة. يلزم توفر اتصال بالإنترنت، وتُطبَّق سياسة خصوصية Green Yoga Inc. لن يتم تحميل أي شيء حتى تختار المتابعة.</value></data>
+  <data name="SupportLoadButton" xml:space="preserve"><value>تحميل نموذج الدعم</value></data>
+  <data name="SupportOpenInBrowser" xml:space="preserve"><value>فتح في متصفح الويب</value></data>
+  <data name="SupportLoading" xml:space="preserve"><value>جارٍ تحميل نموذج الدعم…</value></data>
+  <data name="SupportLoadFailed" xml:space="preserve"><value>تعذّر تحميل نموذج الدعم. تحقّق من اتصالك بالإنترنت وحاول مرة أخرى، أو افتحه في متصفح الويب.</value></data>
+  <data name="SupportRuntimeMissing" xml:space="preserve"><value>المتصفح المدمج (Microsoft Edge WebView2) غير متوفر على هذا الجهاز. يمكنك بدلًا من ذلك فتح نموذج الدعم في متصفح الويب.</value></data>
+  <data name="SupportRetry" xml:space="preserve"><value>إعادة المحاولة</value></data>
 </root>

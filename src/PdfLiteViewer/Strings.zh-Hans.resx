@@ -76,4 +76,31 @@
   <data name="UntitledChapter" xml:space="preserve"><value>无标题章节</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>无法加载章节。</value></data>
   <data name="OpeningFile" xml:space="preserve"><value>正在打开…</value></data>
+  <data name="A11yPageNumber" xml:space="preserve"><value>页码</value></data>
+  <data name="A11yPageRange" xml:space="preserve"><value>页面范围</value></data>
+  <data name="About" xml:space="preserve"><value>关于</value></data>
+  <data name="AboutTooltip" xml:space="preserve"><value>关于 PDF Lite Viewer (F1)</value></data>
+  <data name="AboutWindowTitle" xml:space="preserve"><value>关于 PDF Lite Viewer</value></data>
+  <data name="AboutVersionFormat" xml:space="preserve"><value>版本 {0}</value></data>
+  <data name="AboutPublisher" xml:space="preserve"><value>由 Green Yoga Inc 发布</value></data>
+  <data name="AboutLicenseLine" xml:space="preserve"><value>免费软件，根据 MIT 许可证发布。</value></data>
+  <data name="AboutPurpose" xml:space="preserve"><value>适用于 Windows 的免费轻量级 PDF 阅读器，没有多余的臃肿功能。</value></data>
+  <data name="AboutBrandBlurb" xml:space="preserve"><value>Green Yoga Inc 专注于开发健康生活与科技领域的软件和数字工具。</value></data>
+  <data name="AboutLogoName" xml:space="preserve"><value>Green Yoga Inc 徽标</value></data>
+  <data name="AboutWebsite" xml:space="preserve"><value>网站</value></data>
+  <data name="AboutMoreSoftware" xml:space="preserve"><value>更多软件</value></data>
+  <data name="AboutPrivacy" xml:space="preserve"><value>隐私政策</value></data>
+  <data name="AboutViewLicense" xml:space="preserve"><value>MIT 许可证</value></data>
+  <data name="AboutHideLicense" xml:space="preserve"><value>隐藏许可证</value></data>
+  <data name="AboutContactSupport" xml:space="preserve"><value>联系支持</value></data>
+  <data name="AboutClose" xml:space="preserve"><value>关闭</value></data>
+  <data name="AboutBack" xml:space="preserve"><value>返回</value></data>
+  <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>在您的网络浏览器中打开 {0}</value></data>
+  <data name="SupportConsentText" xml:space="preserve"><value>Green Yoga Inc 支持表单将在此窗口内打开。需要连接互联网，且适用 Green Yoga Inc 的隐私政策。在您选择继续之前，不会加载任何内容。</value></data>
+  <data name="SupportLoadButton" xml:space="preserve"><value>加载支持表单</value></data>
+  <data name="SupportOpenInBrowser" xml:space="preserve"><value>在网络浏览器中打开</value></data>
+  <data name="SupportLoading" xml:space="preserve"><value>正在加载支持表单…</value></data>
+  <data name="SupportLoadFailed" xml:space="preserve"><value>无法加载支持表单。请检查您的网络连接并重试，或在网络浏览器中打开它。</value></data>
+  <data name="SupportRuntimeMissing" xml:space="preserve"><value>此设备上没有嵌入式浏览器 (Microsoft Edge WebView2)。您可以改为在网络浏览器中打开支持表单。</value></data>
+  <data name="SupportRetry" xml:space="preserve"><value>重试</value></data>
 </root>

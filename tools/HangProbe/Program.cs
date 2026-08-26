@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using PdfLiteViewer;
 
@@ -103,6 +104,79 @@ internal static class Program
         results.Add(await watch.MeasureAsync("10 jumps with chapters open", Ms(400),
             () => JumpAroundAsync(window, pages)));
 
+        // Eviction must walk the retained window, never the whole document — the old
+        // full scan cost O(pages) on the UI thread at every settled render update.
+        await Task.Delay(300);                       // let the deferred render pass run
+        await watch.SettleAsync();
+        var evictionChecks = new List<Check>
+        {
+            new("eviction scan bounded (continuous)",
+                window.LastEvictionScanLength > 0 && window.LastEvictionScanLength <= 200,
+                $"last eviction pass visited {window.LastEvictionScanLength} slot(s) of {pages} pages"),
+        };
+
+        // Sidebar scrolling recycles chapter containers; a re-realized container for the
+        // active chapter re-applies the TwoWay IsSelected binding and re-raises
+        // SelectedItemChanged. Those echoes must never move the document (they used to
+        // GoToPage the reader back to the chapter's first page). The check is
+        // self-validating: it counts the echoes the guard absorbed, so a run that never
+        // exercised the guarded path fails instead of passing vacuously.
+        window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 137);
+        await watch.SettleAsync();
+        double offsetBefore = window.Scroller.VerticalOffset;
+        int selectedIndex = int.TryParse(window.PageBox.Text, out int pageBoxPage) ? pageBoxPage - 1 : pages / 2;
+        if (AboutChecks.FindChildren<ScrollViewer>(window.ChapterTree).FirstOrDefault() is { } treeScroller)
+        {
+            int echoBefore = window.ChapterEchoCount;
+            for (int round = 0; round < 3; round++)
+            {
+                // Park far away, then bring the active chapter's container back into
+                // view: that recycle/re-realize cycle is what raises the echo.
+                treeScroller.ScrollToHome();
+                await watch.SettleAsync();
+                treeScroller.ScrollToEnd();
+                await watch.SettleAsync();
+                treeScroller.ScrollToVerticalOffset(Math.Max(0, selectedIndex - 5));   // item-scrolling: offset == index
+                await watch.SettleAsync();
+            }
+            int echoes = window.ChapterEchoCount - echoBefore;
+            double offsetAfter = window.Scroller.VerticalOffset;
+            evictionChecks.Add(new Check("sidebar scrolling never moves the document",
+                echoes > 0 && Math.Abs(offsetAfter - offsetBefore) < 1.0,
+                $"{echoes} echo(es) absorbed; document offset {offsetBefore:F1} -> {offsetAfter:F1}"));
+
+            // The inverse must keep working: picking a *different* chapter navigates.
+            // selectedIndex + 5 sits inside the viewport (its top is at
+            // selectedIndex - 5), so the target's container is realized regardless
+            // of the panel's cache configuration.
+            var roots = window.ChapterTree.ItemsSource as List<ChapterItem>;
+            var target = roots is not null && selectedIndex + 5 < roots.Count
+                ? roots[selectedIndex + 5] : null;
+            if (target?.PageIndex is int targetPage)
+            {
+                await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
+                target.IsSelected = true;
+                await watch.SettleAsync();
+                evictionChecks.Add(new Check("selecting a different chapter navigates",
+                    int.TryParse(window.PageBox.Text, out int landed) && landed == targetPage + 1,
+                    $"picked the chapter at page {targetPage + 1}, page box reads '{window.PageBox.Text}'"));
+            }
+            else
+            {
+                evictionChecks.Add(new Check("selecting a different chapter navigates", false,
+                    "no realized target chapter available for the check"));
+            }
+        }
+        else
+        {
+            // Both checks must appear in the tally — a missing scroller fails them
+            // explicitly instead of silently shrinking the check count.
+            evictionChecks.Add(new Check("sidebar scrolling never moves the document", false,
+                "chapter tree scroller not found - the check could not run"));
+            evictionChecks.Add(new Check("selecting a different chapter navigates", false,
+                "chapter tree scroller not found - the check could not run"));
+        }
+
         results.Add(await watch.MeasureAsync("switch to facing mode", Ms(400),
             () => window.SetMode(ViewMode.Facing)));
 
@@ -134,6 +208,9 @@ internal static class Program
 
         var checks = await LayoutChecks.RunAsync(window, pages, watch.SettleAsync);
         checks.AddRange(printerChecks);
+        checks.AddRange(evictionChecks);
+        checks.AddRange(await PreviewRaceChecks.RunAsync(doc));
+        checks.AddRange(await AboutChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();

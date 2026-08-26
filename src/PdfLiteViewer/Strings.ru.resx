@@ -76,4 +76,31 @@
   <data name="UntitledChapter" xml:space="preserve"><value>Глава без названия</value></data>
   <data name="ChapterLoadFailed" xml:space="preserve"><value>Не удалось загрузить главы.</value></data>
   <data name="OpeningFile" xml:space="preserve"><value>Открытие…</value></data>
+  <data name="A11yPageNumber" xml:space="preserve"><value>Номер страницы</value></data>
+  <data name="A11yPageRange" xml:space="preserve"><value>Диапазон страниц</value></data>
+  <data name="About" xml:space="preserve"><value>О программе</value></data>
+  <data name="AboutTooltip" xml:space="preserve"><value>О программе PDF Lite Viewer (F1)</value></data>
+  <data name="AboutWindowTitle" xml:space="preserve"><value>О программе PDF Lite Viewer</value></data>
+  <data name="AboutVersionFormat" xml:space="preserve"><value>Версия {0}</value></data>
+  <data name="AboutPublisher" xml:space="preserve"><value>Издатель: Green Yoga Inc</value></data>
+  <data name="AboutLicenseLine" xml:space="preserve"><value>Бесплатная программа, распространяется по лицензии MIT.</value></data>
+  <data name="AboutPurpose" xml:space="preserve"><value>Бесплатная и легковесная программа для просмотра PDF в Windows. Никаких лишних функций.</value></data>
+  <data name="AboutBrandBlurb" xml:space="preserve"><value>Green Yoga Inc создаёт целенаправленные программы и цифровые инструменты для благополучия и технологий.</value></data>
+  <data name="AboutLogoName" xml:space="preserve"><value>Логотип Green Yoga Inc</value></data>
+  <data name="AboutWebsite" xml:space="preserve"><value>Веб-сайт</value></data>
+  <data name="AboutMoreSoftware" xml:space="preserve"><value>Другие программы</value></data>
+  <data name="AboutPrivacy" xml:space="preserve"><value>Политика конфиденциальности</value></data>
+  <data name="AboutViewLicense" xml:space="preserve"><value>Лицензия MIT</value></data>
+  <data name="AboutHideLicense" xml:space="preserve"><value>Скрыть лицензию</value></data>
+  <data name="AboutContactSupport" xml:space="preserve"><value>Связаться со службой поддержки</value></data>
+  <data name="AboutClose" xml:space="preserve"><value>Закрыть</value></data>
+  <data name="AboutBack" xml:space="preserve"><value>Назад</value></data>
+  <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>Открывает {0} в веб-браузере</value></data>
+  <data name="SupportConsentText" xml:space="preserve"><value>Форма поддержки Green Yoga Inc открывается в этом окне. Требуется подключение к интернету, и применяется политика конфиденциальности Green Yoga Inc. Ничего не загружается, пока вы не решите продолжить.</value></data>
+  <data name="SupportLoadButton" xml:space="preserve"><value>Загрузить форму поддержки</value></data>
+  <data name="SupportOpenInBrowser" xml:space="preserve"><value>Открыть в веб-браузере</value></data>
+  <data name="SupportLoading" xml:space="preserve"><value>Загрузка формы поддержки…</value></data>
+  <data name="SupportLoadFailed" xml:space="preserve"><value>Не удалось загрузить форму поддержки. Проверьте подключение к интернету и повторите попытку либо откройте её в веб-браузере.</value></data>
+  <data name="SupportRuntimeMissing" xml:space="preserve"><value>Встроенный браузер (Microsoft Edge WebView2) недоступен на этом устройстве. Вы можете открыть форму поддержки в веб-браузере.</value></data>
+  <data name="SupportRetry" xml:space="preserve"><value>Повторить попытку</value></data>
 </root>

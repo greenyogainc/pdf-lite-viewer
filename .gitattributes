@@ -1,0 +1,5 @@
+# PDFs are byte-exact binaries even when their syntax is pure ASCII — CRLF
+# normalization would shift every xref offset (tools/fixtures, the demo doc).
+*.pdf -text
+*.png -text
+*.ico -text

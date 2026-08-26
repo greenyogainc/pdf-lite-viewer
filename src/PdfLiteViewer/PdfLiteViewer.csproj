@@ -8,7 +8,10 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>PdfLiteViewer</AssemblyName>
     <RootNamespace>PdfLiteViewer</RootNamespace>
-    <Version>1.0.13</Version>
+    <!-- The one authoritative release version. packaging/Build-Msix.ps1 refuses to pack
+         when Package.appxmanifest disagrees, and packaging/Verify-Release.ps1 checks the
+         packed artifacts against it. Bump here first. -->
+    <Version>1.0.15</Version>
     <Authors>Green Yoga Inc</Authors>
     <Company>Green Yoga Inc</Company>
     <Product>PDF Lite Viewer</Product>
@@ -23,6 +26,15 @@
     <PackageReference Include="PDFtoImage" Version="5.1.0" />
     <!-- Outline/bookmark extraction only; rendering stays with PDFtoImage. -->
     <PackageReference Include="PdfPig" Version="0.1.15" />
+    <!-- Embedded browser for the About window's web support form only. Pinned exact:
+         the loader ships in the package, so a silent minor bump must not slip in. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="[1.0.4129.50]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\greenyoga-mark.png" />
+    <!-- License text shown inside the About window, so it is readable offline. -->
+    <EmbeddedResource Include="..\..\LICENSE" LogicalName="PdfLiteViewer.LICENSE" />
   </ItemGroup>
 
 </Project>
