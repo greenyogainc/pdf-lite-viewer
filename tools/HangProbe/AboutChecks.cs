@@ -210,7 +210,7 @@ internal static class AboutChecks
         await Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 
-    private static IEnumerable<T> FindChildren<T>(DependencyObject root) where T : DependencyObject
+    internal static IEnumerable<T> FindChildren<T>(DependencyObject root) where T : DependencyObject
     {
         int count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
         for (int i = 0; i < count; i++)

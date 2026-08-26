@@ -115,26 +115,59 @@ internal static class Program
                 $"last eviction pass visited {window.LastEvictionScanLength} slot(s) of {pages} pages"),
         };
 
-        // Sidebar scrolling recycles chapter containers; the re-realized IsSelected
-        // bindings re-raise SelectedItemChanged for the already-active chapter, and
-        // those echoes must never move the document (they used to GoToPage the reader
-        // back to the chapter's first page).
+        // Sidebar scrolling recycles chapter containers; a re-realized container for the
+        // active chapter re-applies the TwoWay IsSelected binding and re-raises
+        // SelectedItemChanged. Those echoes must never move the document (they used to
+        // GoToPage the reader back to the chapter's first page). The check is
+        // self-validating: it counts the echoes the guard absorbed, so a run that never
+        // exercised the guarded path fails instead of passing vacuously.
         window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 137);
         await watch.SettleAsync();
         double offsetBefore = window.Scroller.VerticalOffset;
-        if (FindScroller(window.ChapterTree) is ScrollViewer treeScroller)
+        int selectedIndex = int.TryParse(window.PageBox.Text, out int pageBoxPage) ? pageBoxPage - 1 : pages / 2;
+        if (AboutChecks.FindChildren<ScrollViewer>(window.ChapterTree).FirstOrDefault() is { } treeScroller)
         {
+            int echoBefore = window.ChapterEchoCount;
             for (int round = 0; round < 3; round++)
             {
-                treeScroller.ScrollToEnd();
-                await watch.SettleAsync();
+                // Park far away, then bring the active chapter's container back into
+                // view: that recycle/re-realize cycle is what raises the echo.
                 treeScroller.ScrollToHome();
                 await watch.SettleAsync();
+                treeScroller.ScrollToEnd();
+                await watch.SettleAsync();
+                treeScroller.ScrollToVerticalOffset(Math.Max(0, selectedIndex - 5));   // item-scrolling: offset == index
+                await watch.SettleAsync();
             }
+            int echoes = window.ChapterEchoCount - echoBefore;
             double offsetAfter = window.Scroller.VerticalOffset;
             evictionChecks.Add(new Check("sidebar scrolling never moves the document",
-                Math.Abs(offsetAfter - offsetBefore) < 1.0,
-                $"document offset {offsetBefore:F1} -> {offsetAfter:F1} after 3 sidebar scroll rounds"));
+                echoes > 0 && Math.Abs(offsetAfter - offsetBefore) < 1.0,
+                $"{echoes} echo(es) absorbed; document offset {offsetBefore:F1} -> {offsetAfter:F1}"));
+
+            // The inverse must keep working: picking a *different* chapter navigates.
+            var roots = window.ChapterTree.ItemsSource as List<ChapterItem>;
+            var target = roots is not null && selectedIndex - 7 >= 0 && selectedIndex - 7 < roots.Count
+                ? roots[selectedIndex - 7] : null;
+            if (target?.PageIndex is int targetPage)
+            {
+                await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
+                target.IsSelected = true;   // its container is realized (we just scrolled here)
+                await watch.SettleAsync();
+                evictionChecks.Add(new Check("selecting a different chapter navigates",
+                    int.TryParse(window.PageBox.Text, out int landed) && landed == targetPage + 1,
+                    $"picked the chapter at page {targetPage + 1}, page box reads '{window.PageBox.Text}'"));
+            }
+            else
+            {
+                evictionChecks.Add(new Check("selecting a different chapter navigates", false,
+                    "no realized target chapter available for the check"));
+            }
+        }
+        else
+        {
+            evictionChecks.Add(new Check("sidebar scrolling never moves the document", false,
+                "chapter tree scroller not found - the check could not run"));
         }
 
         results.Add(await watch.MeasureAsync("switch to facing mode", Ms(400),
@@ -237,19 +270,6 @@ internal static class Program
         Console.WriteLine($"screenshot: {Shots.Capture(window, "single-zoomed")}");
         Console.WriteLine($"           zoomed panning: scrollable {window.Scroller.ScrollableWidth:F0}x" +
                           $"{window.Scroller.ScrollableHeight:F0}px");
-    }
-
-    /// <summary>The ScrollViewer inside a control's template, or null before layout.</summary>
-    private static ScrollViewer? FindScroller(DependencyObject root)
-    {
-        int count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
-        for (int i = 0; i < count; i++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
-            if (child is ScrollViewer viewer) return viewer;
-            if (FindScroller(child) is { } nested) return nested;
-        }
-        return null;
     }
 
     private static TimeSpan Ms(int ms) => TimeSpan.FromMilliseconds(ms);

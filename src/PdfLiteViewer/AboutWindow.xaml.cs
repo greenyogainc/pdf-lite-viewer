@@ -30,7 +30,9 @@ public partial class AboutWindow : Window
     /// <summary>NavigationId of a navigation this window's policy cancelled, so its own
     /// NavigationCompleted (should the runtime report something other than
     /// OperationCanceled) cannot replace the working form with the failure state —
-    /// while an unrelated navigation's real failure still reports normally.</summary>
+    /// while an unrelated navigation's real failure still reports normally.
+    /// Single-slot on purpose: an overwritten earlier cancel still completes as
+    /// OperationCanceled, which the completed handler filters independently.</summary>
     private ulong? _policyCancelledNavigationId;
 
     /// <summary>Test access (tools/StoreShots submit check) to the live web view.</summary>
@@ -143,13 +145,13 @@ public partial class AboutWindow : Window
         // yet. Unreachable from the UI (the buttons are hidden while loading) but the
         // test seams call this directly.
         if (_supportLoadInFlight) return;
-        _supportLoadInFlight = true;
-        _policyCancelledNavigationId = null;
-        ShowSupportState(SupportState.Loading);
         try
         {
-            if (SimulateWebViewInitFailure)
-                throw new InvalidOperationException("Simulated WebView2 initialization failure (test seam).");
+            // Everything after the guard lives in the try: the finally must always
+            // clear the flag, or one thrown state change would dead-end every retry.
+            _supportLoadInFlight = true;
+            _policyCancelledNavigationId = null;
+            ShowSupportState(SupportState.Loading);
 
             if (_webView is null)
             {
@@ -165,6 +167,11 @@ public partial class AboutWindow : Window
                 var view = new WebView2();
                 _webView = view;
                 WebViewHost.Child = view;
+
+                // The seam throws only after the control is attached, so the test
+                // proves DropWebView really detaches and disposes it.
+                if (SimulateWebViewInitFailure)
+                    throw new InvalidOperationException("Simulated WebView2 initialization failure (test seam).");
 
                 var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: dataDir);
                 await view.EnsureCoreWebView2Async(environment);
@@ -265,10 +272,11 @@ public partial class AboutWindow : Window
 
     private void Core_ProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
-        // GPU/utility/frame-helper exits recover on their own; rebuilding for those
-        // would throw away a half-filled form. Only a dead browser or main renderer
-        // warrants tearing down — and *outside* this COM event callback, since
-        // disposing the control while its own event is on the stack risks re-entrancy.
+        // GPU/utility/frame-helper exits recover on their own, and an *unresponsive*
+        // renderer often comes back too — rebuilding for any of those would throw away
+        // a half-filled form. Only a dead browser or main renderer warrants tearing
+        // down — and *outside* this COM event callback, since disposing the control
+        // while its own event is on the stack risks re-entrancy.
         if (e.ProcessFailedKind is not (CoreWebView2ProcessFailedKind.BrowserProcessExited
             or CoreWebView2ProcessFailedKind.RenderProcessExited))
             return;

@@ -29,7 +29,9 @@ param(
     [string[]]$MsixPaths = @(),
     [string[]]$Zips = @(),
     [switch]$TagCheck,
-    [switch]$WingetCheck
+    [switch]$WingetCheck,
+    # Skips the built-from-HEAD check for deliberate pre-commit builds only.
+    [switch]$SkipProvenance
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +39,20 @@ $root = Split-Path $PSScriptRoot -Parent
 $failures = New-Object System.Collections.Generic.List[string]
 function Fail([string]$msg) { $failures.Add($msg); Write-Host "FAIL  $msg" -ForegroundColor Red }
 function Ok([string]$msg)   { Write-Host "ok    $msg" -ForegroundColor Green }
+
+$headSha = ""
+try { $headSha = (git -C $root rev-parse HEAD).Trim() } catch { }
+
+# The SDK stamps the build's commit into ProductVersion as "+<sha>". An artifact
+# built from any other commit than the one being verified must never pass - the
+# 1.0.15 review round caught exactly that: a gate blessing pre-fix binaries.
+function Test-Provenance([string]$label, [string]$productVersion) {
+    if ($SkipProvenance) { return }
+    $sha = ($productVersion -split '\+')[1]
+    if (-not $sha) { Fail "${label}: executable carries no source revision" }
+    elseif ($headSha -and $sha -ne $headSha) { Fail "${label}: built from $sha but HEAD is $headSha - rebuild from the current commit" }
+    else { Ok "${label}: built from HEAD ($sha)" }
+}
 
 # ---- authoritative version -------------------------------------------------
 $csprojPath = Join-Path $root "src\PdfLiteViewer\PdfLiteViewer.csproj"
@@ -71,8 +87,9 @@ $csprojLangs = @((($csproj.Project.PropertyGroup |
     Where-Object { $_.SatelliteResourceLanguages } |
     Select-Object -First 1).SatelliteResourceLanguages -split ';') |
     Where-Object { $_ -and $_ -ne 'en' })
-if ($satelliteLangs.Count -ne $csprojLangs.Count) {
-    Fail "manifest lists $($satelliteLangs.Count) non-English languages but csproj SatelliteResourceLanguages ships $($csprojLangs.Count)"
+$langDiff = Compare-Object ($satelliteLangs | Sort-Object) ($csprojLangs | Sort-Object)
+if ($langDiff) {
+    Fail "manifest/csproj language lists differ: $(($langDiff | ForEach-Object { "$($_.SideIndicator)$($_.InputObject)" }) -join ' ')"
 } else { Ok "manifest/csproj language lists agree ($($satelliteLangs.Count) satellites)" }
 
 $expectedAssets = @("StoreLogo.png", "Square150x150Logo.png", "Square44x44Logo.png",
@@ -113,6 +130,7 @@ foreach ($msix in $MsixPaths) {
             $prodVer3 = (($vi.ProductVersion -split '\+')[0] -split '\.')[0..2] -join '.'
             if ($fileVer3 -ne $ExpectedVersion) { Fail "${name}: exe FileVersion '$($vi.FileVersion)' != $ExpectedVersion" } else { Ok "${name}: exe FileVersion $($vi.FileVersion)" }
             if ($prodVer3 -ne $ExpectedVersion) { Fail "${name}: exe ProductVersion '$($vi.ProductVersion)' != $ExpectedVersion" } else { Ok "${name}: exe ProductVersion $($vi.ProductVersion)" }
+            Test-Provenance $name $vi.ProductVersion
         }
 
         $missingAssets = @($expectedAssets | Where-Object { -not (Test-Path (Join-Path $unpack "Assets\$_")) })
@@ -136,7 +154,12 @@ foreach ($msix in $MsixPaths) {
 if ($Zips.Count -eq 0) {
     $Zips = @(Get-ChildItem (Join-Path $PSScriptRoot "out\PdfLiteViewer-$ExpectedVersion-win-*.zip") -ErrorAction SilentlyContinue |
         ForEach-Object { $_.FullName })
-    if ($Zips.Count -eq 0) { Fail "no portable zips found for $ExpectedVersion (run Build-Zip.ps1 for both RIDs)" }
+}
+# Both architectures ship; a lone zip must never read as full coverage.
+foreach ($ridName in @("win-x64", "win-arm64")) {
+    if (-not ($Zips | Where-Object { $_ -match [regex]::Escape("PdfLiteViewer-$ExpectedVersion-$ridName.zip") })) {
+        Fail "no $ridName portable zip for $ExpectedVersion (run Build-Zip.ps1 -Rid $ridName)"
+    }
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($zip in $Zips) {
@@ -154,6 +177,21 @@ foreach ($zip in $Zips) {
             -not ($entries | Where-Object { $_ -eq "$lang/PdfLiteViewer.resources.dll" -or $_ -eq "$lang\PdfLiteViewer.resources.dll" }) })
         if ($missingSat) { Fail "${zn}: missing satellites: $($missingSat -join ', ')" } else { Ok "${zn}: satellites present" }
         if ($entries -notcontains "WebView2Loader.dll") { Fail "${zn}: WebView2Loader.dll missing" } else { Ok "${zn}: WebView2Loader.dll present" }
+
+        # The zip's own executable must match the version AND the commit under
+        # verification - the 1.0.14 zips were built from two different source states.
+        $exeEntry = $archive.Entries | Where-Object { $_.FullName -eq "PdfLiteViewer.exe" } | Select-Object -First 1
+        if ($exeEntry) {
+            $tmpExe = Join-Path ([System.IO.Path]::GetTempPath()) "plv-zip-$([guid]::NewGuid().ToString('n')).exe"
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($exeEntry, $tmpExe, $true)
+            try {
+                $zvi = (Get-Item $tmpExe).VersionInfo
+                $zFileVer3 = ($zvi.FileVersion -split '\.')[0..2] -join '.'
+                if ($zFileVer3 -ne $ExpectedVersion) { Fail "${zn}: exe FileVersion '$($zvi.FileVersion)' != $ExpectedVersion" } else { Ok "${zn}: exe FileVersion $($zvi.FileVersion)" }
+                Test-Provenance $zn $zvi.ProductVersion
+            }
+            finally { Remove-Item $tmpExe -Force -ErrorAction SilentlyContinue }
+        }
     }
     finally { $archive.Dispose() }
     Ok "${zn}: SHA256 $((Get-FileHash $zip -Algorithm SHA256).Hash)"

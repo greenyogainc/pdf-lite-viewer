@@ -65,6 +65,11 @@ public partial class MainWindow : Window
     private bool _suppressChapterNav;
     private bool _chapterScrollQueued;
 
+    /// <summary>Realization echoes absorbed by the chapter-selection guard. tools/HangProbe
+    /// asserts this moved during its sidebar-scroll check — proof the guarded path was
+    /// actually exercised, not merely never reached.</summary>
+    internal int ChapterEchoCount;
+
     private readonly ItemsPanelTemplate _verticalPanel;
     private readonly ItemsPanelTemplate _horizontalPanel;
     private readonly ItemsPanelTemplate _virtualPanel;
@@ -876,7 +881,7 @@ public partial class MainWindow : Window
         // At this event an echo is indistinguishable from a click on the active chapter,
         // so that click is deliberately a no-op (the reader is already inside the
         // chapter, and the next scroll or page change re-syncs the selection anyway).
-        if (ReferenceEquals(item, _selectedChapter)) return;
+        if (ReferenceEquals(item, _selectedChapter)) { ChapterEchoCount++; return; }
 
         _suppressChapterNav = true;
         try
