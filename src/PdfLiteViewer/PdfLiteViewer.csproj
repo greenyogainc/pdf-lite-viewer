@@ -11,7 +11,7 @@
     <!-- The one authoritative release version. packaging/Build-Msix.ps1 refuses to pack
          when Package.appxmanifest disagrees, and packaging/Verify-Release.ps1 checks the
          packed artifacts against it. Bump here first. -->
-    <Version>1.0.15</Version>
+    <Version>1.0.16</Version>
     <Authors>Green Yoga Inc</Authors>
     <Company>Green Yoga Inc</Company>
     <Product>PDF Lite Viewer</Product>

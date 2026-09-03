@@ -50,6 +50,15 @@ applies to it. Nothing is loaded until you ask.
 
 ## What's new
 
+- **1.0.16** (2026-09-03) — Fixes from a full codebase review: print jobs keep the rotation
+  they were started with (rotating the view while a job spooled could rotate the remaining
+  sheets); a PDF with no pages is refused with a clear message instead of leaving the viewer
+  in a broken state; jumping to the other page of the visible spread no longer flashes; Cancel
+  and Escape are disabled while a print job spools; a PDF that moved before Explorer opened it
+  is reported instead of silently ignored; pages re-render when the window moves to a monitor
+  with a different scale; printer handles are released after use. Release tooling verifies
+  the winget hashes, ships well-formed test fixtures, and gains regression checks (52 in
+  HangProbe). Full report in `docs/code-review/`.
 - **1.0.15** (2026-08-26) — About & support window (`F1`) with version, MIT license
   text and a consent-gated embedded support form; the print preview no longer shows a
   stale page after fast page turns; off-screen page eviction no longer scales with
