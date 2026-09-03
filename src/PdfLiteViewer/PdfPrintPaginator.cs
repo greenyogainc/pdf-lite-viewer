@@ -23,11 +23,6 @@ public sealed class PdfPrintPaginator : DocumentPaginator
         _pageSize = pageSize;
     }
 
-    public PdfPrintPaginator(PdfDoc doc, int firstPage, int lastPage, Size pageSize)
-        : this(doc, Enumerable.Range(firstPage, lastPage - firstPage + 1).ToList(), pageSize)
-    {
-    }
-
     public override bool IsPageCountValid => true;
     public override int PageCount => _pages.Count;
     public override Size PageSize { get => _pageSize; set { } }

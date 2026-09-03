@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     /// <summary>The open document, for tools/HangProbe's layout assertions.</summary>
     internal PdfDoc? Document => _doc;
 
+    /// <summary>The current page slots, for tools/HangProbe's facing-spread check.</summary>
+    internal IReadOnlyList<PageItem> Items => _items;
+
     private ViewMode _mode = ViewMode.Facing;
     private int _currentPage;               // 0-based
     private double _zoom = 1.0;
@@ -559,8 +562,15 @@ public partial class MainWindow : Window
         }
         else
         {
-            if (page == _currentPage && _items.Count > 0)
+            // In facing mode the target may be the other page of the spread already on
+            // screen; rebuilding then only drops both rendered bitmaps and paints the same
+            // spread again, as a visible flash.
+            bool alreadyShown = _mode == ViewMode.Facing
+                ? FacingGroupStart(page) == FacingGroupStart(_currentPage)
+                : page == _currentPage;
+            if (alreadyShown && _items.Count > 0)
             {
+                _currentPage = page;
                 // Still refresh the box: "0" or "99999" clamped to the current page must
                 // not leave the stale typed value standing next to the page count.
                 PageBox.Text = (page + 1).ToString();

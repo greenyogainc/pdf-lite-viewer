@@ -27,8 +27,11 @@ public partial class App : Application
                 }
                 catch (CultureNotFoundException) { }
             }
-            else if (StartupFile is null && File.Exists(arg))
+            else if (StartupFile is null && !arg.StartsWith("--", StringComparison.Ordinal))
             {
+                // Taken as given, even when it does not exist: the window's open path
+                // reports a missing or unreadable file, whereas skipping it here started
+                // the app silently empty after a double-click on a PDF that had just moved.
                 StartupFile = arg;
             }
         }

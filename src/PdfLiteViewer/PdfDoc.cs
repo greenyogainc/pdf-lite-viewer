@@ -34,6 +34,12 @@ public sealed class PdfDoc
         FilePath = path;
         _bytes = File.ReadAllBytes(path);
         PageCount = PDFtoImage.Conversion.GetPageCount(_bytes);
+        // PDFium opens a well-formed file whose page tree is empty (/Count 0) without
+        // complaint, but nothing here can show or print zero pages: the facing/single
+        // layouts index PageSizes[0] and GoToPage clamps to [0, -1]. Refuse it up front so
+        // every caller's existing "could not open" path reports it instead.
+        if (PageCount <= 0)
+            throw new InvalidDataException("The document contains no pages.");
         var sizes = PDFtoImage.Conversion.GetPageSizes(_bytes);
         PageSizes = sizes.Select(s => ((double)s.Width, (double)s.Height)).ToList();
     }

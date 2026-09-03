@@ -40,8 +40,10 @@ internal sealed class UiWatchdog : IDisposable
                 var op = _dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
                 op.Task.Wait(TimeSpan.FromMinutes(5));
             }
-            catch (TaskCanceledException) { return; }
             catch (OperationCanceledException) { return; }
+            // Task.Wait wraps the cancellation, so this is the clause that actually fires
+            // when the dispatcher shuts down with a ping in flight.
+            catch (AggregateException ex) when (ex.InnerException is OperationCanceledException) { return; }
             sw.Stop();
 
             long ticks = sw.Elapsed.Ticks;

@@ -210,6 +210,7 @@ internal static class Program
         checks.AddRange(printerChecks);
         checks.AddRange(evictionChecks);
         checks.AddRange(await PreviewRaceChecks.RunAsync(doc));
+        checks.AddRange(await ContractChecks.RunAsync(window, doc, watch.SettleAsync));
         checks.AddRange(await AboutChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 

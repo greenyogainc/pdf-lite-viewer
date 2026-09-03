@@ -35,10 +35,13 @@ internal static class PrintJob
         try
         {
             using var server = new LocalPrintServer();
-            var names = server.GetPrintQueues(QueueTypes).Select(q => q.FullName).ToList();
+            // Every PrintQueue wraps a spooler handle: take the name and let it go.
+            var names = new List<string>();
+            foreach (var queue in server.GetPrintQueues(QueueTypes))
+                using (queue) names.Add(queue.FullName);
 
             string? defaultName = null;
-            try { defaultName = LocalPrintServer.GetDefaultPrintQueue().FullName; } catch { }
+            try { using var def = LocalPrintServer.GetDefaultPrintQueue(); defaultName = def.FullName; } catch { }
 
             return (names, defaultName);
         }
@@ -116,7 +119,16 @@ internal static class PrintJob
         try { return server.GetPrintQueue(name); }
         catch { /* fall through to a full enumeration */ }
 
-        try { return server.GetPrintQueues(QueueTypes).FirstOrDefault(q => q.FullName == name); }
+        try
+        {
+            PrintQueue? match = null;
+            foreach (var queue in server.GetPrintQueues(QueueTypes))
+            {
+                if (match is null && queue.FullName == name) match = queue;
+                else queue.Dispose();
+            }
+            return match;
+        }
         catch { return null; }
     }
 
