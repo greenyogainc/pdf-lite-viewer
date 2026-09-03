@@ -103,4 +103,5 @@ Detalhes registrados em:
   <data name="SupportLoadFailed" xml:space="preserve"><value>Não foi possível carregar o formulário de suporte. Verifique a sua ligação à Internet e tente novamente, ou abra-o no seu navegador.</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>O navegador incorporado (Microsoft Edge WebView2) não está disponível neste dispositivo. Pode abrir o formulário de suporte no seu navegador.</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>Tentar novamente</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>O documento não contém páginas legíveis.</value></data>
 </root>

@@ -103,4 +103,5 @@
   <data name="SupportLoadFailed" xml:space="preserve"><value>Не удалось загрузить форму поддержки. Проверьте подключение к интернету и повторите попытку либо откройте её в веб-браузере.</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>Встроенный браузер (Microsoft Edge WebView2) недоступен на этом устройстве. Вы можете открыть форму поддержки в веб-браузере.</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>Повторить попытку</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>Документ не содержит читаемых страниц.</value></data>
 </root>

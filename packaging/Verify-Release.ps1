@@ -242,6 +242,7 @@ if ($WingetCheck) {
         # same name verified above. The manifest is written from the uploaded zips, so a
         # zip rebuilt since then legitimately fails here: upload and hash the same file.
         $arch = $null
+        $checkedArch = @()
         foreach ($line in ($installer -split "`n")) {
             if ($line -match '^\s*-\s*Architecture:\s*(\S+)') { $arch = $Matches[1]; continue }
             if ($arch -and $line -match '^\s*InstallerSha256:\s*([0-9A-Fa-f]{64})') {
@@ -251,8 +252,13 @@ if ($WingetCheck) {
                 if (-not $localHash) { Fail "winget installer.yaml: no local $zipName to check the $arch InstallerSha256 against" }
                 elseif ($localHash -ne $manifestHash) { Fail "winget installer.yaml: $arch InstallerSha256 $manifestHash != $zipName $localHash" }
                 else { Ok "winget installer.yaml: $arch InstallerSha256 matches $zipName" }
+                $checkedArch += $arch
                 $arch = $null
             }
+        }
+        # A manifest whose hash lines this loop could not find must not read as verified.
+        foreach ($a in @("x64", "arm64")) {
+            if ($checkedArch -notcontains $a) { Fail "winget installer.yaml: no InstallerSha256 found for $a - nothing was compared" }
         }
     }
 }

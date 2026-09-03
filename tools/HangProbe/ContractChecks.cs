@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using PdfLiteViewer;
 
 namespace HangProbe;
@@ -8,9 +10,11 @@ namespace HangProbe;
 /// <summary>
 /// Regression checks for contracts the 2026-09 full-codebase review found unguarded:
 /// a zero-page document must be refused at open (PDFium accepts it, the layouts cannot
-/// show it); a facing-mode jump to the other page of the visible spread must not rebuild
-/// the spread; the print preview must commit to a job once Print is clicked; and the
-/// print-range parser and scale-to-fit placement must hold their documented edge cases.
+/// show it); a non-PDF startup argument must not become a startup file (this very probe
+/// passes a page count); a facing-mode jump to the other page of the visible spread must
+/// not rebuild the spread; the print preview must commit to a job once Print is clicked;
+/// a print job must keep the rotation it started with; and the print-range parser and
+/// scale-to-fit placement must hold their documented edge cases.
 /// </summary>
 internal static class ContractChecks
 {
@@ -18,8 +22,10 @@ internal static class ContractChecks
     {
         var checks = new List<Check>();
         checks.Add(ZeroPageDocumentRejected());
+        checks.Add(StartupArgumentIgnored());
         checks.AddRange(await FacingSpreadAsync(window, settle));
         checks.AddRange(await PrintCommitsAsync(doc));
+        checks.Add(PrintRotationSnapshot(doc));
         checks.Add(PrintRangeParsing());
         checks.Add(PlacePageFits());
         return checks;
@@ -29,6 +35,7 @@ internal static class ContractChecks
 
     private static Check ZeroPageDocumentRejected()
     {
+        const string name = "zero-page document is rejected at open";
         var path = Path.Combine(Path.GetTempPath(), "hangprobe-zero-pages.pdf");
         try
         {
@@ -36,17 +43,24 @@ internal static class ContractChecks
             try
             {
                 var doc = new PdfDoc(path);
-                return new Check("zero-page document is rejected at open", false,
+                return new Check(name, false,
                     $"PdfDoc opened it with PageCount={doc.PageCount}; RebuildItems would index an empty PageSizes");
             }
-            catch (InvalidDataException ex)
+            catch (Exception ex)
             {
-                return new Check("zero-page document is rejected at open", true, $"InvalidDataException: {ex.Message}");
+                // Any rejection is the contract: MainWindow.OpenFileAsync catches Exception and
+                // reports it. PdfDoc's own guard is the expected source, PDFium refusing the
+                // file outright would be just as acceptable.
+                return new Check(name, true, $"rejected with {ex.GetType().Name}: {ex.Message}");
             }
         }
         catch (Exception ex)
         {
-            return new Check("zero-page document is rejected at open", false, $"{ex.GetType().Name}: {ex.Message}");
+            return new Check(name, false, $"could not run: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { }
         }
     }
 
@@ -70,6 +84,24 @@ internal static class ContractChecks
         body.Append("trailer\n<< /Size ").Append(offsets.Count + 1).Append(" /Root 1 0 R >>\nstartxref\n")
             .Append(xref).Append("\n%%EOF\n");
         File.WriteAllBytes(path, Encoding.ASCII.GetBytes(body.ToString()));
+    }
+
+    // ---------- App: startup arguments ----------
+
+    /// <summary>
+    /// The probe runs the production App with its page count as the first argument (and
+    /// tools/StoreShots with an output directory). Neither is a PDF, so neither may become
+    /// the startup file - a regression here puts a modal "could not open" dialog over every
+    /// window the probe measures.
+    /// </summary>
+    private static Check StartupArgumentIgnored()
+    {
+        var args = Environment.GetCommandLineArgs().Skip(1).ToList();
+        var startupFile = ((App)Application.Current).StartupFile;
+        bool anyPdf = args.Any(a => a.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || File.Exists(a));
+        return new Check("non-PDF startup arguments are ignored",
+            anyPdf || startupFile is null,
+            $"args [{string.Join(", ", args)}] -> StartupFile = {(startupFile is null ? "null" : $"'{startupFile}'")}");
     }
 
     // ---------- MainWindow: facing spread ----------
@@ -143,6 +175,48 @@ internal static class ContractChecks
             try { window?.Close(); } catch { }
         }
         return checks;
+    }
+
+    // ---------- PdfPrintPaginator: rotation is fixed when the job starts ----------
+
+    /// <summary>
+    /// The preview can be closed and the view rotated while a job is still producing pages
+    /// on the print thread. The paginator must keep the rotation it was created with, both
+    /// for the sheet geometry and for the bitmap drawn into it.
+    /// </summary>
+    private static Check PrintRotationSnapshot(PdfDoc doc)
+    {
+        const string name = "print: pages keep the rotation the job started with";
+        var before = doc.Rotation;
+        try
+        {
+            doc.Rotation = PDFtoImage.PdfRotation.Rotate0;
+            var (w, h) = doc.GetDisplaySize(0, PDFtoImage.PdfRotation.Rotate0);
+            bool portrait = w < h;   // the stress pages are portrait letter
+            var paginator = new PdfPrintPaginator(doc, new[] { 0 }, PrintJob.FallbackPaper, PDFtoImage.PdfRotation.Rotate0);
+
+            doc.Rotation = PDFtoImage.PdfRotation.Rotate90;   // the user rotates mid-job
+            var page = paginator.GetPage(0);
+
+            var box = page.ContentBox;
+            bool boxOk = (box.Width < box.Height) == portrait;
+            var image = VisualTreeHelper.GetDrawing(page.Visual)?.Children.OfType<ImageDrawing>()
+                .Select(d => d.ImageSource as BitmapSource).FirstOrDefault(b => b is not null);
+            bool bitmapOk = image is not null && (image.PixelWidth < image.PixelHeight) == portrait;
+
+            return new Check(name, boxOk && bitmapOk,
+                $"content box {box.Width:F0}x{box.Height:F0}, bitmap " +
+                (image is null ? "missing" : $"{image.PixelWidth}x{image.PixelHeight}") +
+                $"; page is {(portrait ? "portrait" : "landscape")} and the view was rotated after the job started");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            doc.Rotation = before;
+        }
     }
 
     // ---------- Pure print math ----------

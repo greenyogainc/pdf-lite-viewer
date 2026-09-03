@@ -103,4 +103,5 @@
   <data name="SupportLoadFailed" xml:space="preserve"><value>無法載入支援表單。請檢查您的網際網路連線並重試，或在網頁瀏覽器中開啟。</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>這部裝置上沒有內嵌瀏覽器 (Microsoft Edge WebView2)。您可以改為在網頁瀏覽器中開啟支援表單。</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>重試</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>此文件不包含可讀取的頁面。</value></data>
 </root>

@@ -27,11 +27,15 @@ public partial class App : Application
                 }
                 catch (CultureNotFoundException) { }
             }
-            else if (StartupFile is null && !arg.StartsWith("--", StringComparison.Ordinal))
+            else if (StartupFile is null && !arg.StartsWith('-')
+                     && (File.Exists(arg) || arg.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)))
             {
-                // Taken as given, even when it does not exist: the window's open path
-                // reports a missing or unreadable file, whereas skipping it here started
-                // the app silently empty after a double-click on a PDF that had just moved.
+                // A .pdf path is taken even when it no longer exists: the window's open path
+                // then reports the missing file, whereas dropping it here started the app
+                // silently empty after a double-click on a PDF that had just moved. Anything
+                // else that is not an existing file is ignored - tools/HangProbe and
+                // tools/StoreShots run this same App with a page count or an output directory
+                // as their first argument.
                 StartupFile = arg;
             }
         }
