@@ -22,10 +22,10 @@ internal static class ContractChecks
     {
         var checks = new List<Check>();
         checks.Add(ZeroPageDocumentRejected());
-        checks.Add(StartupArgumentIgnored());
+        checks.AddRange(StartupArgumentRule());
         checks.AddRange(await FacingSpreadAsync(window, settle));
         checks.AddRange(await PrintCommitsAsync(doc));
-        checks.Add(PrintRotationSnapshot(doc));
+        checks.Add(await PrintRotationSnapshotAsync(doc));
         checks.Add(PrintRangeParsing());
         checks.Add(PlacePageFits());
         return checks;
@@ -92,16 +92,37 @@ internal static class ContractChecks
     /// The probe runs the production App with its page count as the first argument (and
     /// tools/StoreShots with an output directory). Neither is a PDF, so neither may become
     /// the startup file - a regression here puts a modal "could not open" dialog over every
-    /// window the probe measures.
+    /// window the probe measures. The rule is table-tested directly so the check means the
+    /// same whether or not this run was given a page count; the live StartupFile is reported
+    /// alongside.
     /// </summary>
-    private static Check StartupArgumentIgnored()
+    private static IEnumerable<Check> StartupArgumentRule()
     {
+        var existingFile = Environment.ProcessPath ?? Environment.GetCommandLineArgs()[0];
+        var cases = new (string Arg, bool Expected)[]
+        {
+            ("3000", false),                                    // HangProbe's own argument
+            (Path.GetTempPath().TrimEnd('\\'), false),          // an existing directory (StoreShots)
+            (existingFile, true),                               // an existing file
+            (@"C:\gone\moved-away.pdf", true),                  // a PDF that no longer exists: reported, not dropped
+            (@"C:\gone\Moved Away.PDF", true),
+            ("--lang=de", false),
+            ("-x", false),
+            ("", false),
+            ("report.txt", false),
+        };
+        var wrong = cases.Where(c => App.IsDocumentArgument(c.Arg) != c.Expected)
+            .Select(c => $"'{c.Arg}' -> {!c.Expected}").ToList();
+        yield return new Check("startup argument rule", wrong.Count == 0,
+            wrong.Count == 0 ? $"{cases.Length} cases verified" : string.Join("; ", wrong));
+
         var args = Environment.GetCommandLineArgs().Skip(1).ToList();
         var startupFile = ((App)Application.Current).StartupFile;
-        bool anyPdf = args.Any(a => a.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || File.Exists(a));
-        return new Check("non-PDF startup arguments are ignored",
-            anyPdf || startupFile is null,
-            $"args [{string.Join(", ", args)}] -> StartupFile = {(startupFile is null ? "null" : $"'{startupFile}'")}");
+        bool anyDocument = args.Any(App.IsDocumentArgument);
+        yield return new Check("non-PDF startup arguments are ignored",
+            anyDocument || startupFile is null,
+            $"args [{string.Join(", ", args)}] -> StartupFile = {(startupFile is null ? "null" : $"'{startupFile}'")}"
+            + (args.Count == 0 ? " (no arguments this run; the rule itself is covered above)" : ""));
     }
 
     // ---------- MainWindow: facing spread ----------
@@ -182,9 +203,11 @@ internal static class ContractChecks
     /// <summary>
     /// The preview can be closed and the view rotated while a job is still producing pages
     /// on the print thread. The paginator must keep the rotation it was created with, both
-    /// for the sheet geometry and for the bitmap drawn into it.
+    /// for the sheet geometry and for the bitmap drawn into it. The page is produced on a
+    /// dedicated STA thread, as PrintJob does - a synchronous PDFium render never belongs on
+    /// the UI thread this probe is guarding.
     /// </summary>
-    private static Check PrintRotationSnapshot(PdfDoc doc)
+    private static async Task<Check> PrintRotationSnapshotAsync(PdfDoc doc)
     {
         const string name = "print: pages keep the rotation the job started with";
         var before = doc.Rotation;
@@ -196,18 +219,21 @@ internal static class ContractChecks
             var paginator = new PdfPrintPaginator(doc, new[] { 0 }, PrintJob.FallbackPaper, PDFtoImage.PdfRotation.Rotate0);
 
             doc.Rotation = PDFtoImage.PdfRotation.Rotate90;   // the user rotates mid-job
-            var page = paginator.GetPage(0);
 
-            var box = page.ContentBox;
-            bool boxOk = (box.Width < box.Height) == portrait;
-            var image = VisualTreeHelper.GetDrawing(page.Visual)?.Children.OfType<ImageDrawing>()
-                .Select(d => d.ImageSource as BitmapSource).FirstOrDefault(b => b is not null);
-            bool bitmapOk = image is not null && (image.PixelWidth < image.PixelHeight) == portrait;
+            // Measured on the print thread too: the DocumentPage's visual belongs to it.
+            var (boxW, boxH, bmpW, bmpH) = await OnStaThreadAsync(() =>
+            {
+                var page = paginator.GetPage(0);
+                var image = VisualTreeHelper.GetDrawing(page.Visual)?.Children.OfType<ImageDrawing>()
+                    .Select(d => d.ImageSource as BitmapSource).FirstOrDefault(b => b is not null);
+                return (page.ContentBox.Width, page.ContentBox.Height, image?.PixelWidth ?? 0, image?.PixelHeight ?? 0);
+            });
 
+            bool boxOk = (boxW < boxH) == portrait;
+            bool bitmapOk = bmpW > 0 && bmpH > 0 && (bmpW < bmpH) == portrait;
             return new Check(name, boxOk && bitmapOk,
-                $"content box {box.Width:F0}x{box.Height:F0}, bitmap " +
-                (image is null ? "missing" : $"{image.PixelWidth}x{image.PixelHeight}") +
-                $"; page is {(portrait ? "portrait" : "landscape")} and the view was rotated after the job started");
+                $"content box {boxW:F0}x{boxH:F0}, bitmap {bmpW}x{bmpH}; page is " +
+                $"{(portrait ? "portrait" : "landscape")} and the view was rotated after the job started");
         }
         catch (Exception ex)
         {
@@ -217,6 +243,25 @@ internal static class ContractChecks
         {
             doc.Rotation = before;
         }
+    }
+
+    /// <summary>Runs work on a fresh STA thread and shuts down the dispatcher it may create, like PrintJob.</summary>
+    private static Task<T> OnStaThreadAsync<T>(Func<T> work)
+    {
+        var tcs = new TaskCompletionSource<T>();
+        var thread = new Thread(() =>
+        {
+            try { tcs.SetResult(work()); }
+            catch (Exception ex) { tcs.SetException(ex); }
+            finally { System.Windows.Threading.Dispatcher.FromThread(Thread.CurrentThread)?.InvokeShutdown(); }
+        })
+        {
+            Name = "probe-print",
+            IsBackground = true,
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return tcs.Task;
     }
 
     // ---------- Pure print math ----------
