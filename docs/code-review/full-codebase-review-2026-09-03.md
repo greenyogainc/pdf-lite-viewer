@@ -158,7 +158,7 @@ task; `OnDpiChanged` re-runs layout; `Verify-Release.ps1` fails when no hash lin
 thread like `PrintJob`; the print-commit check asserts state transitions rather than resting
 states; the StoreShots colour sampler uses a 16-pixel grid.
 
-37 files changed on the branch (742 insertions, 228 deletions at `eaf2c16`), plus this
+37 files changed on the branch (749 insertions, 228 deletions at `eaf2c16`), plus this
 report. No version, manifest identity, package pin, or shipped asset was changed.
 
 ## Tests added or changed
