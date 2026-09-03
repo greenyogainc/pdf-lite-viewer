@@ -103,4 +103,5 @@
   <data name="SupportLoadFailed" xml:space="preserve"><value>تعذّر تحميل نموذج الدعم. تحقّق من اتصالك بالإنترنت وحاول مرة أخرى، أو افتحه في متصفح الويب.</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>المتصفح المدمج (Microsoft Edge WebView2) غير متوفر على هذا الجهاز. يمكنك بدلًا من ذلك فتح نموذج الدعم في متصفح الويب.</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>إعادة المحاولة</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>لا يحتوي المستند على صفحات قابلة للقراءة.</value></data>
 </root>

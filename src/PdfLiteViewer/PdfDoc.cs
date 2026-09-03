@@ -34,18 +34,35 @@ public sealed class PdfDoc
         FilePath = path;
         _bytes = File.ReadAllBytes(path);
         PageCount = PDFtoImage.Conversion.GetPageCount(_bytes);
+        // PDFium opens a well-formed file whose page tree is empty (/Count 0) without
+        // complaint, but nothing here can show or print zero pages: the facing/single
+        // layouts index PageSizes[0] and GoToPage clamps to [0, -1]. Refuse it up front so
+        // every caller's existing "could not open" path reports it instead.
+        if (PageCount <= 0)
+            throw new UnreadablePagesException("The document contains no pages.");
         var sizes = PDFtoImage.Conversion.GetPageSizes(_bytes);
         PageSizes = sizes.Select(s => ((double)s.Width, (double)s.Height)).ToList();
+        // Every layout indexes PageSizes by page number up to PageCount - 1, and the two come
+        // from separate PDFium calls: pin the invariant here rather than in a layout pass.
+        if (PageSizes.Count != PageCount)
+            throw new UnreadablePagesException($"The document reports {PageCount} pages but {PageSizes.Count} page sizes.");
     }
 
     /// <summary>
     /// Page size in PDF points after the current <see cref="Rotation"/> —
     /// width/height swap for 90° and 270°.
     /// </summary>
-    public (double Width, double Height) GetDisplaySize(int pageIndex)
+    public (double Width, double Height) GetDisplaySize(int pageIndex) => GetDisplaySize(pageIndex, Rotation);
+
+    /// <summary>
+    /// The same under an explicit rotation. The print paginator snapshots the rotation when
+    /// the job starts, so rotating the view while pages are still being produced on the print
+    /// thread can neither change the remaining sheets nor tear one between size and bitmap.
+    /// </summary>
+    public (double Width, double Height) GetDisplaySize(int pageIndex, PDFtoImage.PdfRotation rotation)
     {
         var (w, h) = PageSizes[pageIndex];
-        return Rotation is PDFtoImage.PdfRotation.Rotate90 or PDFtoImage.PdfRotation.Rotate270
+        return rotation is PDFtoImage.PdfRotation.Rotate90 or PDFtoImage.PdfRotation.Rotate270
             ? (h, w)
             : (w, h);
     }
@@ -79,8 +96,11 @@ public sealed class PdfDoc
         }
     }
 
-    /// <summary>Synchronous render, used by the print paginator (one page at a time).</summary>
-    public BitmapSource RenderPageSync(int pageIndex, int targetPixelWidth)
+    /// <summary>
+    /// Synchronous render, used by the print paginator (one page at a time) with the rotation
+    /// it snapshotted at job start rather than the live <see cref="Rotation"/>.
+    /// </summary>
+    public BitmapSource RenderPageSync(int pageIndex, int targetPixelWidth, PDFtoImage.PdfRotation rotation)
     {
         RenderLock.Wait();
         try
@@ -93,7 +113,7 @@ public sealed class PdfDoc
                     WithAspectRatio: true,
                     WithAnnotations: true,
                     WithFormFill: true,
-                    Rotation: Rotation,
+                    Rotation: rotation,
                     AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
                     BackgroundColor: SKColors.White));
             return ToBitmapSource(sk);
@@ -213,4 +233,13 @@ public sealed class PdfDoc
                 src.Dispose();
         }
     }
+}
+
+/// <summary>
+/// Thrown by <see cref="PdfDoc"/> when PDFium opens a file but reports no usable pages. The
+/// main window maps it to a localized message; tools see the English detail.
+/// </summary>
+public sealed class UnreadablePagesException : IOException
+{
+    public UnreadablePagesException(string message) : base(message) { }
 }

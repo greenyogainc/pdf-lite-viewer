@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     /// <summary>The open document, for tools/HangProbe's layout assertions.</summary>
     internal PdfDoc? Document => _doc;
 
+    /// <summary>The current page slots, for tools/HangProbe's facing-spread check.</summary>
+    internal IReadOnlyList<PageItem> Items => _items;
+
     private ViewMode _mode = ViewMode.Facing;
     private int _currentPage;               // 0-based
     private double _zoom = 1.0;
@@ -156,6 +159,19 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
     }
 
+    /// <summary>
+    /// Bitmaps are rendered for the monitor's pixel density, but a window dragged to a monitor
+    /// with a different scale keeps its DIP size: no SizeChanged fires, and off fit-to-view
+    /// nothing would re-render, leaving the pages soft. Re-run layout; the render pass
+    /// re-targets the retained window at the new density.
+    /// </summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (_doc is not null)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ApplyLayout(scrollToCurrent: false));
+    }
+
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         var startupFile = ((App)Application.Current).StartupFile;
@@ -206,22 +222,48 @@ public partial class MainWindow : Window
             if (generation != _openGeneration) return;   // a newer open owns the UI now
             LoadingHint.Visibility = Visibility.Collapsed;
             EmptyHint.Visibility = _doc is null ? Visibility.Visible : Visibility.Collapsed;
-            Strings.ShowError(this, string.Format(Strings.Get("OpenFileErrorMessage"), path, ex.Message));
+            ShowOpenError(path, ex);
             return;
         }
 
         if (generation != _openGeneration) return;
 
         LoadingHint.Visibility = Visibility.Collapsed;
-        _doc = doc;
-        Title = string.Format(Strings.Get("MainWindowTitleFormat"),
-            System.IO.Path.GetFileName(path), Strings.Get("AppTitle"));
-        _currentPage = 0;
-        _fitToView = true;
-        _doc.Rotation = PDFtoImage.PdfRotation.Rotate0;
-        PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), _doc.PageCount);
-        ResetChapters();
-        RebuildItems();
+        try
+        {
+            _doc = doc;
+            Title = string.Format(Strings.Get("MainWindowTitleFormat"),
+                System.IO.Path.GetFileName(path), Strings.Get("AppTitle"));
+            _currentPage = 0;
+            _fitToView = true;
+            _doc.Rotation = PDFtoImage.PdfRotation.Rotate0;
+            PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), _doc.PageCount);
+            ResetChapters();
+            RebuildItems();
+        }
+        catch (Exception ex)
+        {
+            // Nothing above is expected to throw, but every caller discards this task, so a
+            // failure here would otherwise vanish while _doc and _items describe different
+            // documents. Fall back to the empty state, which is always consistent, and say so.
+            App.LogError(ex);
+            _doc = null;
+            _items = new List<PageItem>();
+            PagesHost.ItemsSource = _items;
+            Title = Strings.Get("AppTitle");
+            PageCountText.Text = string.Format(Strings.Get("PageCountFormat"), 0);
+            EmptyHint.Visibility = Visibility.Visible;
+            ResetChapters();
+            ShowOpenError(path, ex);
+        }
+    }
+
+    private void ShowOpenError(string path, Exception ex)
+    {
+        // PdfDoc's own rejection is the one failure with a translation; PDFium's messages
+        // arrive in English regardless.
+        var reason = ex is UnreadablePagesException ? Strings.Get("NoPagesMessage") : ex.Message;
+        Strings.ShowError(this, string.Format(Strings.Get("OpenFileErrorMessage"), path, reason));
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -559,8 +601,15 @@ public partial class MainWindow : Window
         }
         else
         {
-            if (page == _currentPage && _items.Count > 0)
+            // In facing mode the target may be the other page of the spread already on
+            // screen; rebuilding then only drops both rendered bitmaps and paints the same
+            // spread again, as a visible flash.
+            bool alreadyShown = _mode == ViewMode.Facing
+                ? FacingGroupStart(page) == FacingGroupStart(_currentPage)
+                : page == _currentPage;
+            if (alreadyShown && _items.Count > 0)
             {
+                _currentPage = page;
                 // Still refresh the box: "0" or "99999" clamped to the current page must
                 // not leave the stale typed value standing next to the page count.
                 PageBox.Text = (page + 1).ToString();

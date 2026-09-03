@@ -48,6 +48,19 @@ applies to it. Nothing is loaded until you ask.
 | `Ctrl` `+` / `−` / `0` | Zoom in / out / fit |
 | `Ctrl+R` | Rotate pages 90° clockwise (view + print; file unchanged) |
 
+## What's new
+
+- **1.0.15** (2026-08-26) — About & support window (`F1`) with version, MIT license
+  text and a consent-gated embedded support form; the print preview no longer shows a
+  stale page after fast page turns; off-screen page eviction no longer scales with
+  document size; scrolling the chapter sidebar no longer moves the document; release
+  verification gates (version parity across csproj, MSIX manifest and packed artifacts,
+  plus build provenance); refreshed Store screenshots.
+- **1.0.14** (2026-08-21) — winget distribution via portable-zip manifests.
+- **1.0.13** (2026-08-17) — New app icon (open book on green with the Green Yoga mark),
+  and the 1.0.12 fixes for UI-thread hangs when opening large documents, switching to
+  continuous mode, printing, and navigating with the chapter sidebar.
+
 ## Building
 
 Requires the .NET 10 SDK on Windows.

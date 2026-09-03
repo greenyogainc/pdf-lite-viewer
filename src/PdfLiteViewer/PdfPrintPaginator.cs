@@ -15,17 +15,19 @@ public sealed class PdfPrintPaginator : DocumentPaginator
     private readonly PdfDoc _doc;
     private readonly IReadOnlyList<int> _pages;   // 0-based PDF page indices to print
     private readonly Size _pageSize;              // device-independent pixels (1/96")
+    private readonly PDFtoImage.PdfRotation _rotation;
 
-    public PdfPrintPaginator(PdfDoc doc, IReadOnlyList<int> pages, Size pageSize)
+    /// <param name="rotation">
+    /// Snapshot of the view rotation when the job was started. The paginator runs on the
+    /// print thread after the preview has closed, so it must not read the live
+    /// <see cref="PdfDoc.Rotation"/> the user may change meanwhile.
+    /// </param>
+    public PdfPrintPaginator(PdfDoc doc, IReadOnlyList<int> pages, Size pageSize, PDFtoImage.PdfRotation rotation)
     {
         _doc = doc;
         _pages = pages;
         _pageSize = pageSize;
-    }
-
-    public PdfPrintPaginator(PdfDoc doc, int firstPage, int lastPage, Size pageSize)
-        : this(doc, Enumerable.Range(firstPage, lastPage - firstPage + 1).ToList(), pageSize)
-    {
+        _rotation = rotation;
     }
 
     public override bool IsPageCountValid => true;
@@ -47,11 +49,11 @@ public sealed class PdfPrintPaginator : DocumentPaginator
     public override DocumentPage GetPage(int pageNumber)
     {
         int pdfIndex = _pages[pageNumber];
-        var (ptW, ptH) = _doc.GetDisplaySize(pdfIndex);
+        var (ptW, ptH) = _doc.GetDisplaySize(pdfIndex, _rotation);
         var rect = PlacePage(ptW, ptH, _pageSize);
 
         int pixelWidth = Math.Min(6000, (int)Math.Round(rect.Width / 96.0 * PrintDpi));
-        var bmp = _doc.RenderPageSync(pdfIndex, pixelWidth);
+        var bmp = _doc.RenderPageSync(pdfIndex, pixelWidth, _rotation);
 
         var visual = new DrawingVisual();
         using (var ctx = visual.RenderOpen())

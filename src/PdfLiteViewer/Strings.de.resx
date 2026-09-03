@@ -103,4 +103,5 @@ Details protokolliert unter:
   <data name="SupportLoadFailed" xml:space="preserve"><value>Das Support-Formular konnte nicht geladen werden. Überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut, oder öffnen Sie es in Ihrem Webbrowser.</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>Der eingebettete Browser (Microsoft Edge WebView2) ist auf diesem Gerät nicht verfügbar. Sie können das Support-Formular stattdessen in Ihrem Webbrowser öffnen.</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>Erneut versuchen</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>Das Dokument enthält keine lesbaren Seiten.</value></data>
 </root>

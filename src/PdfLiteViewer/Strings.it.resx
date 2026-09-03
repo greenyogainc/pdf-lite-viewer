@@ -103,4 +103,5 @@ Dettagli registrati in:
   <data name="SupportLoadFailed" xml:space="preserve"><value>Impossibile caricare il modulo di assistenza. Controlla la connessione internet e riprova, oppure aprilo nel tuo browser web.</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>Il browser integrato (Microsoft Edge WebView2) non è disponibile su questo dispositivo. Puoi aprire il modulo di assistenza nel tuo browser web.</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>Riprova</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>Il documento non contiene pagine leggibili.</value></data>
 </root>

@@ -27,7 +27,7 @@ public partial class App : Application
                 }
                 catch (CultureNotFoundException) { }
             }
-            else if (StartupFile is null && File.Exists(arg))
+            else if (StartupFile is null && IsDocumentArgument(arg))
             {
                 StartupFile = arg;
             }
@@ -42,6 +42,18 @@ public partial class App : Application
 
         base.OnStartup(e);
     }
+
+    /// <summary>
+    /// Whether a command-line token names the document to open. A .pdf path counts even when
+    /// it no longer exists: the window's open path then reports the missing file, whereas
+    /// dropping it here started the app silently empty after a double-click on a PDF that had
+    /// just moved. Anything else that is not an existing file is ignored - tools/HangProbe and
+    /// tools/StoreShots run this same App with a page count or an output directory as their
+    /// first argument. Pure and static so the probe can exercise it directly.
+    /// </summary>
+    internal static bool IsDocumentArgument(string arg) =>
+        !arg.StartsWith('-') &&
+        (File.Exists(arg) || arg.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
 
     private static string LogPath =>
         Path.Combine(Path.GetTempPath(), "PdfLiteViewer.log");

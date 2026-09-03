@@ -91,7 +91,7 @@
                               ToolTip="{local:Loc DraftCheckboxTooltip}"/>
                     <Rectangle Width="1" Fill="#FF4A4A4A" Margin="6,2"/>
                     <Button x:Name="PrintBtn" Style="{StaticResource BarButton}" Content="{local:Loc PrintBtn}" FontWeight="SemiBold" Click="Print_Click"/>
-                    <Button Style="{StaticResource BarButton}" Content="{local:Loc CancelBtn}" Click="Cancel_Click"/>
+                    <Button x:Name="CancelBtn" Style="{StaticResource BarButton}" Content="{local:Loc CancelBtn}" Click="Cancel_Click"/>
                 </StackPanel>
             </DockPanel>
         </Border>

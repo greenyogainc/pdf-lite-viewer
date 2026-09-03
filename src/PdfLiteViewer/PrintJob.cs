@@ -35,10 +35,15 @@ internal static class PrintJob
         try
         {
             using var server = new LocalPrintServer();
-            var names = server.GetPrintQueues(QueueTypes).Select(q => q.FullName).ToList();
+            // Every PrintQueue wraps a spooler handle, and so does the collection: take the
+            // names and let them all go.
+            var names = new List<string>();
+            using var queues = server.GetPrintQueues(QueueTypes);
+            foreach (var queue in queues)
+                using (queue) names.Add(queue.FullName);
 
             string? defaultName = null;
-            try { defaultName = LocalPrintServer.GetDefaultPrintQueue().FullName; } catch { }
+            try { using var def = LocalPrintServer.GetDefaultPrintQueue(); defaultName = def.FullName; } catch { }
 
             return (names, defaultName);
         }
@@ -80,8 +85,13 @@ internal static class PrintJob
 
     /// <summary>Sends the job. The returned task completes when the spooler has the whole document.</summary>
     public static Task RunAsync(PdfDoc doc, IReadOnlyList<int> pages, string queueName,
-        int copies, bool grayscale, bool draft, string jobName) =>
-        RunOnStaThread(() =>
+        int copies, bool grayscale, bool draft, string jobName)
+    {
+        // Snapshot on the calling (UI) thread: the preview can be closed and the view rotated
+        // while the job is still producing pages on its own thread, and every sheet must
+        // match what the preview showed.
+        var rotation = doc.Rotation;
+        return RunOnStaThread(() =>
         {
             using var server = new LocalPrintServer();
             using var queue = ResolveQueue(server, queueName)
@@ -95,28 +105,43 @@ internal static class PrintJob
             queue.CurrentJobSettings.Description = jobName;
 
             var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-            writer.Write(new PdfPrintPaginator(doc, pages, PaperFor(ticket)), ticket);
+            writer.Write(new PdfPrintPaginator(doc, pages, PaperFor(ticket), rotation), ticket);
         });
+    }
 
     /// <summary>
     /// Same threading and pagination path as <see cref="RunAsync"/>, writing to an XPS file
     /// instead of a queue. Used by tools/HangProbe to exercise print rendering without a printer.
     /// </summary>
-    internal static Task WriteXpsAsync(PdfDoc doc, IReadOnlyList<int> pages, Size paper, string path) =>
-        RunOnStaThread(() =>
+    internal static Task WriteXpsAsync(PdfDoc doc, IReadOnlyList<int> pages, Size paper, string path)
+    {
+        var rotation = doc.Rotation;
+        return RunOnStaThread(() =>
         {
             File.Delete(path);
             using var xps = new XpsDocument(path, FileAccess.ReadWrite);
-            XpsDocument.CreateXpsDocumentWriter(xps).Write(new PdfPrintPaginator(doc, pages, paper));
+            XpsDocument.CreateXpsDocumentWriter(xps).Write(new PdfPrintPaginator(doc, pages, paper, rotation));
             xps.Close();
         });
+    }
 
     private static PrintQueue? ResolveQueue(PrintServer server, string name)
     {
         try { return server.GetPrintQueue(name); }
         catch { /* fall through to a full enumeration */ }
 
-        try { return server.GetPrintQueues(QueueTypes).FirstOrDefault(q => q.FullName == name); }
+        try
+        {
+            // The collection itself is left to the finalizer here: disposing it may dispose
+            // the match being handed back, and this path only runs when GetPrintQueue failed.
+            PrintQueue? match = null;
+            foreach (var queue in server.GetPrintQueues(QueueTypes))
+            {
+                if (match is null && queue.FullName == name) match = queue;
+                else queue.Dispose();
+            }
+            return match;
+        }
         catch { return null; }
     }
 

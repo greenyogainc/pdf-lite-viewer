@@ -103,4 +103,5 @@
   <data name="SupportLoadFailed" xml:space="preserve"><value>サポートフォームを読み込めませんでした。インターネット接続を確認してもう一度お試しいただくか、Web ブラウザーで開いてください。</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>組み込みブラウザー (Microsoft Edge WebView2) はこのデバイスでは利用できません。代わりに Web ブラウザーでサポートフォームを開くことができます。</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>再試行</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>この文書には読み取り可能なページがありません。</value></data>
 </root>

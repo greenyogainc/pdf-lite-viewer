@@ -31,6 +31,13 @@ public partial class PrintPreviewWindow : Window
     /// </summary>
     internal Func<int, int, CancellationToken, Task<System.Windows.Media.Imaging.BitmapSource>>? RenderOverride;
 
+    /// <summary>
+    /// Test seam: tools/HangProbe holds a job open to prove the window commits to it
+    /// (settings, Print and Cancel disabled until the spooler has the document). Null in
+    /// production.
+    /// </summary>
+    internal Func<Task>? PrintOverride;
+
     public PrintPreviewWindow(PdfDoc doc, int currentDocPage)
     {
         InitializeComponent();
@@ -98,7 +105,7 @@ public partial class PrintPreviewWindow : Window
         _pages = RangeMode.SelectedIndex switch
         {
             1 => new List<int> { _currentDocPage },
-            2 => ParseRange(RangeBox.Text),
+            2 => ParseRange(RangeBox.Text, _doc.PageCount),
             _ => Enumerable.Range(0, _doc.PageCount).ToList(),
         };
 
@@ -112,7 +119,7 @@ public partial class PrintPreviewWindow : Window
     }
 
     /// <summary>Parses "1-5, 8, 11-13" into 0-based page indices (clamped, deduplicated, ordered).</summary>
-    private List<int> ParseRange(string text)
+    internal static List<int> ParseRange(string text, int pageCount)
     {
         var result = new SortedSet<int>();
         foreach (var part in text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -120,12 +127,12 @@ public partial class PrintPreviewWindow : Window
             var bounds = part.Split('-', StringSplitOptions.TrimEntries);
             if (bounds.Length == 1 && int.TryParse(bounds[0], out int single))
             {
-                if (single >= 1 && single <= _doc.PageCount) result.Add(single - 1);
+                if (single >= 1 && single <= pageCount) result.Add(single - 1);
             }
             else if (bounds.Length == 2 && int.TryParse(bounds[0], out int from) && int.TryParse(bounds[1], out int to))
             {
                 from = Math.Max(1, from);
-                to = Math.Min(_doc.PageCount, to);
+                to = Math.Min(pageCount, to);
                 for (int p = from; p <= to; p++) result.Add(p - 1);
             }
         }
@@ -223,19 +230,22 @@ public partial class PrintPreviewWindow : Window
 
         switch (e.Key)
         {
-            case Key.Escape: Close(); break;
+            case Key.Escape when !_printing: Close(); break;
             case Key.Left:
             case Key.PageUp: _ = StepPreviewAsync(-1); break;
             case Key.Right:
             case Key.PageDown: _ = StepPreviewAsync(+1); break;
             case Key.Enter:
-            case Key.P when Keyboard.Modifiers.HasFlag(ModifierKeys.Control): Print_Click(sender, e); break;
+            case Key.P when Keyboard.Modifiers.HasFlag(ModifierKeys.Control): _ = PrintAsync(); break;
             default: return;
         }
         e.Handled = true;
     }
 
-    private async void Print_Click(object sender, RoutedEventArgs e)
+    private async void Print_Click(object sender, RoutedEventArgs e) => await PrintAsync();
+
+    /// <summary>Sends the job with the settings as they stand; tools/HangProbe drives this directly.</summary>
+    internal async Task PrintAsync()
     {
         if (_printing || _pages.Count == 0 || PrinterBox.SelectedItem is not string queueName) return;
 
@@ -250,7 +260,8 @@ public partial class PrintPreviewWindow : Window
         try
         {
             // Rendering every page at 300 DPI used to happen here, on the UI thread.
-            await PrintJob.RunAsync(_doc, pages, queueName, copies, grayscale, draft, jobName);
+            await (PrintOverride?.Invoke()
+                   ?? PrintJob.RunAsync(_doc, pages, queueName, copies, grayscale, draft, jobName));
             if (IsLoaded) Close();
         }
         catch (Exception ex)
@@ -264,10 +275,16 @@ public partial class PrintPreviewWindow : Window
         }
     }
 
-    /// <summary>The window stays responsive while a job spools; it just stops taking new input.</summary>
+    /// <summary>
+    /// Once Print is clicked the job is committed: the settings, Print and Cancel go dark
+    /// until the spooler has the whole document (Cancel used to stay live and close the
+    /// window while the job kept printing). The preview itself stays responsive, and the
+    /// title-bar close still works - it does not stop the job either.
+    /// </summary>
     private void SetPrintingState(bool printing)
     {
         _printing = printing;
+        CancelBtn.IsEnabled = !printing;
         PrinterBox.IsEnabled = !printing;
         RangeMode.IsEnabled = !printing;
         RangeBox.IsEnabled = !printing;

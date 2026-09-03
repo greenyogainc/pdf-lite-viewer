@@ -103,4 +103,5 @@ Détails consignés dans :
   <data name="SupportLoadFailed" xml:space="preserve"><value>Le formulaire de support n'a pas pu être chargé. Vérifiez votre connexion internet et réessayez, ou ouvrez-le dans votre navigateur web.</value></data>
   <data name="SupportRuntimeMissing" xml:space="preserve"><value>Le navigateur intégré (Microsoft Edge WebView2) n'est pas disponible sur cet appareil. Vous pouvez ouvrir le formulaire de support dans votre navigateur web à la place.</value></data>
   <data name="SupportRetry" xml:space="preserve"><value>Réessayer</value></data>
+  <data name="NoPagesMessage" xml:space="preserve"><value>Le document ne contient aucune page lisible.</value></data>
 </root>
