@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: GreenYogaInc.PDFLiteViewer
+PackageVersion: 1.0.16
+MinimumOSVersion: 10.0.19041.0
+InstallerType: zip
+NestedInstallerType: portable
+# The portable bundle ships pdfium.dll, SkiaSharp native deps, WebView2Loader.dll,
+# and the .NET runtime side-by-side with PdfLiteViewer.exe, so winget must track
+# the binary dependencies by path (not by content hash) — see PR review feedback.
+ArchiveBinariesDependOnPath: true
+NestedInstallerFiles:
+  - RelativeFilePath: PdfLiteViewer.exe
+    PortableCommandAlias: PdfLiteViewer
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/greenyogainc/pdf-lite-viewer/releases/download/v1.0.16/PdfLiteViewer-1.0.16-win-x64.zip
+    InstallerSha256: 8E63742577C1AB4E2CC13049B77DD1C4AD385E49E8231BB4C03CF970E2A6EB90
+  - Architecture: arm64
+    InstallerUrl: https://github.com/greenyogainc/pdf-lite-viewer/releases/download/v1.0.16/PdfLiteViewer-1.0.16-win-arm64.zip
+    InstallerSha256: F9EAF11602219805A3D08541E46A0949EFD6DBBE8C9E5453BF01FBBA19C87244
+ManifestType: installer
+ManifestVersion: 1.6.0
