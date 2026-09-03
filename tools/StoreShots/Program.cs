@@ -87,9 +87,12 @@ internal static class Program
 
     private static async Task<int> RunScenesAsync(string demoPdf, string outDir)
     {
-        // Fresh set: the old captures must not survive next to the new ones.
+        // Fresh set: the old captures must not survive next to the new ones - nor the
+        // captions that described them, or a run that fails midway leaves a captions.md
+        // listing nine images beside a partial set of new PNGs.
         foreach (var stale in Directory.GetFiles(outDir, "*.png"))
             File.Delete(stale);
+        File.Delete(Path.Combine(outDir, "captions.md"));
 
         var window = (MainWindow)Application.Current.MainWindow;
         Prepare(window);
@@ -101,14 +104,14 @@ internal static class Program
         window.SetChapterPaneVisible(true);
         window.GoToPage(3);
         await RenderPauseAsync();
-        Capture(outDir, "1-facing-chapters.png",
+        Capture(window, outDir, "1-facing-chapters.png",
             "Facing-page reading with the chapter sidebar: the document's outline as a tree, with the current chapter highlighted as you read.");
 
         // --- 2: continuous scroll ------------------------------------------
         window.SetMode(ViewMode.Continuous);
         window.GoToPage(2);
         await RenderPauseAsync();
-        Capture(outDir, "2-continuous-scroll.png",
+        Capture(window, outDir, "2-continuous-scroll.png",
             "Continuous scrolling through the whole document, with lazy rendering that keeps even huge PDFs fast.");
 
         // --- 3: print preview (generic printer target only) ----------------
@@ -120,7 +123,7 @@ internal static class Program
         foreach (var item in preview.PrinterBox.Items)
             if (item is string s && s == "Microsoft Print to PDF") { preview.PrinterBox.SelectedItem = s; break; }
         await RenderPauseAsync(1400);
-        Capture(outDir, "3-print-preview.png",
+        Capture(window, outDir, "3-print-preview.png",
             "Built-in print preview: pick a printer, page range and copies, black & white or draft — and see exactly how each page lands on paper.");
         preview.Close();
         await SettleAsync();
@@ -130,7 +133,7 @@ internal static class Program
         window.GoToPage(4);
         window.ToggleFullscreen();
         await RenderPauseAsync();
-        Capture(outDir, "4-single-fullscreen.png",
+        Capture(window, outDir, "4-single-fullscreen.png",
             "Distraction-free full screen (F11) for single-page reading.");
         window.ToggleFullscreen();
         await SettleAsync();
@@ -138,7 +141,7 @@ internal static class Program
         // --- 5: rotation ---------------------------------------------------
         window.RotateClockwise();
         await RenderPauseAsync();
-        Capture(outDir, "5-rotation.png",
+        Capture(window, outDir, "5-rotation.png",
             "Rotate the view 90 degrees at a time (Ctrl+R) — the file on disk is never changed.");
         for (int i = 0; i < 3; i++) window.RotateClockwise();   // back to upright
         await SettleAsync();
@@ -147,7 +150,7 @@ internal static class Program
         var about = new AboutWindow { Owner = window };
         about.Show();
         await RenderPauseAsync(700);
-        Capture(outDir, "6-about.png",
+        Capture(window, outDir, "6-about.png",
             "The About window: version, MIT license and Green Yoga Inc links — plus built-in web support.");
 
         // --- 7: embedded support form (requires internet) ------------------
@@ -162,7 +165,7 @@ internal static class Program
             return 1;
         }
         await RenderPauseAsync(5000);   // let the page paint fully
-        Capture(outDir, "7-support-form.png",
+        Capture(window, outDir, "7-support-form.png",
             "Contact support without leaving the app: the Green Yoga Inc support form, loaded only when you choose. PDF viewing itself never goes online.");
         about.Close();
         await SettleAsync();
@@ -179,7 +182,7 @@ internal static class Program
         arWindow.SetChapterPaneVisible(true);
         arWindow.GoToPage(3);
         await RenderPauseAsync();
-        Capture(outDir, "8-lang-ar.png",
+        Capture(arWindow, outDir, "8-lang-ar.png",
             "Fourteen interface languages, including full right-to-left layout in Arabic.");
         arWindow.Close();
         await SettleAsync();
@@ -194,7 +197,7 @@ internal static class Program
         deWindow.SetChapterPaneVisible(true);
         deWindow.GoToPage(2);
         await RenderPauseAsync();
-        Capture(outDir, "9-lang-de.png",
+        Capture(deWindow, outDir, "9-lang-de.png",
             "The German interface — the viewer follows your Windows display language.");
         deWindow.Close();
 
@@ -317,8 +320,25 @@ internal static class Program
         window.Height = TargetH / dpi.DpiScaleY;
     }
 
-    private static void Capture(string outDir, string file, string caption)
+    /// <summary>
+    /// Captures the fixed target rectangle. Its size is what the PNG's size will be, by
+    /// construction - so what has to be checked here is that the app window really fills
+    /// that rectangle in device pixels (a DPI-virtualized or displaced window would leave
+    /// desktop in the capture and still produce a 2560x1440 file).
+    /// </summary>
+    private static void Capture(Window window, string outDir, string file, string caption)
     {
+        var toDevice = PresentationSource.FromVisual(window)?.CompositionTarget?.TransformToDevice
+                       ?? throw new InvalidOperationException($"{file}: window has no presentation source");
+        var origin = toDevice.Transform(new Point(window.Left, window.Top));
+        var extent = toDevice.Transform(new Vector(window.ActualWidth, window.ActualHeight));
+        bool covers = origin.X <= 0.5 && origin.Y <= 0.5
+                      && origin.X + extent.X >= TargetW - 0.5 && origin.Y + extent.Y >= TargetH - 0.5;
+        if (!covers)
+            throw new InvalidOperationException(
+                $"{file}: window covers ({origin.X:F0},{origin.Y:F0}) {extent.X:F0}x{extent.Y:F0} device px, " +
+                $"which does not contain the (0,0) {TargetW}x{TargetH} capture rectangle");
+
         var path = Path.Combine(outDir, file);
         ScreenCapture.CaptureRect(0, 0, TargetW, TargetH, path);
         Captured.Add(new Shot(file, caption));
@@ -343,14 +363,34 @@ internal static class Program
             var frame = BitmapFrame.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
             bool sizeOk = frame.PixelWidth == TargetW && frame.PixelHeight == TargetH
                           && frame.PixelWidth >= 1366 && frame.PixelHeight >= 768;
+            // The size above can only disagree if the encoder did; the failure a capture
+            // really has is content - a black or blank frame where BitBlt copied nothing
+            // useful. A real screenshot of the app has far more than a handful of colours.
+            int colours = DistinctSampleColours(frame);
+            bool contentOk = colours >= 8;
             bool captionOk = shot.Caption.Length <= 200;
             if (!sizeOk) { bad++; Console.Error.WriteLine($"BAD SIZE {shot.File}: {frame.PixelWidth}x{frame.PixelHeight}"); }
+            if (!contentOk) { bad++; Console.Error.WriteLine($"BLANK CAPTURE {shot.File}: only {colours} distinct colour(s) sampled"); }
             if (!captionOk) { bad++; Console.Error.WriteLine($"CAPTION TOO LONG {shot.File}: {shot.Caption.Length} chars"); }
             captions.Add($"- **{shot.File}** ({frame.PixelWidth}x{frame.PixelHeight}): {shot.Caption}");
         }
         captions.Add("");
         File.WriteAllLines(Path.Combine(outDir, "captions.md"), captions);
         return bad;
+    }
+
+    /// <summary>Distinct colours on a coarse grid across the frame: a blank capture has one.</summary>
+    private static int DistinctSampleColours(BitmapSource frame)
+    {
+        var bgra = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+        int stride = bgra.PixelWidth * 4;
+        var pixels = new byte[stride * bgra.PixelHeight];
+        bgra.CopyPixels(pixels, stride, 0);
+        var colours = new HashSet<int>();
+        for (int y = 0; y < bgra.PixelHeight; y += 32)
+            for (int x = 0; x < bgra.PixelWidth; x += 32)
+                colours.Add(BitConverter.ToInt32(pixels, y * stride + x * 4));
+        return colours.Count;
     }
 
     private static void SetCulture(string name)
