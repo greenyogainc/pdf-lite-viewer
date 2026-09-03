@@ -18,6 +18,8 @@
     .\packaging\Build-Zip.ps1 -Rid win-arm64   # ARM64
 #>
 param(
+    # Only the two shipped RIDs, matching Build-Msix.ps1 and Verify-Release.ps1's discovery.
+    [ValidateSet("win-x64", "win-arm64")]
     [string]$Rid = "win-x64",
     [string]$Configuration = "Release"
 )

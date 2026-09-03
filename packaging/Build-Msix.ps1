@@ -14,6 +14,8 @@
     .\Build-Msix.ps1 -Rid win-arm64   # ARM64 MSIX
 #>
 param(
+    # Only the two shipped RIDs: anything else would be stamped x64 by the arch switch below.
+    [ValidateSet("win-x64", "win-arm64")]
     [string]$Rid = "win-x64",
     [string]$Configuration = "Release",
     [string]$SignThumbprint = ""
@@ -80,8 +82,11 @@ Write-Host "== Packing $msix ==" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
 
 if ($SignThumbprint) {
-    $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+    $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending | Select-Object -First 1
+    if (-not $signtool) {
+        throw "signtool.exe not found. Install the Windows 10/11 SDK (winget install Microsoft.WindowsSDK.10.0.26100)."
+    }
     Write-Host "== Signing ==" -ForegroundColor Cyan
     & $signtool.FullName sign /fd SHA256 /sha1 $SignThumbprint $msix
     if ($LASTEXITCODE -ne 0) { throw "signtool failed" }

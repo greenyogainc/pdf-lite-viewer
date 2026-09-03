@@ -22,8 +22,8 @@
          WebView2Loader.dll, name matches, and the embedded exe's version and
          provenance check out too.
       4. -TagCheck: HEAD carries tag v<version>.
-      5. -WingetCheck: packaging/winget manifests for <version> exist and reference
-         v<version> URLs.
+      5. -WingetCheck: packaging/winget manifests for <version> exist, reference
+         v<version> URLs, and carry the SHA256 of the zips verified in step 3.
 
 .EXAMPLE
     .\packaging\Verify-Release.ps1                        # MSIX + auto-discovered zips for this version
@@ -95,7 +95,7 @@ if ($manifest.Package.Identity.Publisher -ne $expectedPublisher) { Fail "manifes
 $languages = @($manifest.Package.Resources.Resource | ForEach-Object { $_.Language }) | Where-Object { $_ }
 # English ships inside the neutral assembly; every other language needs a satellite dir.
 $satelliteLangs = @($languages | Where-Object { $_ -ne "en-US" })
-# The manifest's language list must agree with what the csproj actually ships — a
+# The manifest's language list must agree with what the csproj actually ships - a
 # trimmed <Resources> list must not silently turn the satellite check into a no-op.
 $csprojLangs = @((($csproj.Project.PropertyGroup |
     Where-Object { $_.SatelliteResourceLanguages } |
@@ -126,9 +126,10 @@ foreach ($msix in $MsixPaths) {
     $rid = if ($name -match "win-arm64") { "arm64" } elseif ($name -match "win-x64") { "x64" } else { "?" }
 
     $unpack = Join-Path ([System.IO.Path]::GetTempPath()) "plv-verify-$([guid]::NewGuid().ToString('n'))"
-    & $makeappx.FullName unpack /p $msix /d $unpack /o | Out-Null
-    if ($LASTEXITCODE -ne 0) { Fail "${name}: makeappx unpack failed"; continue }
     try {
+        # Inside the try: a failed unpack can leave a partial directory behind too.
+        & $makeappx.FullName unpack /p $msix /d $unpack /o | Out-Null
+        if ($LASTEXITCODE -ne 0) { Fail "${name}: makeappx unpack failed"; continue }
         [xml]$appx = Get-Content (Join-Path $unpack "AppxManifest.xml")
         $id = $appx.Package.Identity
         if ($id.Name -ne $expectedIdentityName)      { Fail "${name}: packed Identity Name '$($id.Name)'" }
@@ -176,6 +177,7 @@ foreach ($ridName in @("win-x64", "win-arm64")) {
     }
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zipHashes = @{}   # leaf name -> SHA256, for the winget manifest check below
 foreach ($zip in $Zips) {
     if (-not (Test-Path $zip)) { Fail "missing zip: $zip"; continue }
     $zn = Split-Path $zip -Leaf
@@ -208,7 +210,9 @@ foreach ($zip in $Zips) {
         }
     }
     finally { $archive.Dispose() }
-    Ok "${zn}: SHA256 $((Get-FileHash $zip -Algorithm SHA256).Hash)"
+    $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash
+    $zipHashes[$zn] = $zipHash
+    Ok "${zn}: SHA256 $zipHash"
 }
 
 # ---- optional tag check ----------------------------------------------------
@@ -232,6 +236,24 @@ if ($WingetCheck) {
             }
         }
         if ($okUrls) { Ok "winget manifests reference v$ExpectedVersion" }
+
+        # The URLs are the easy part; the hash is what a stale copy-paste from the previous
+        # version breaks. Compare each architecture's InstallerSha256 with the zip of the
+        # same name verified above. The manifest is written from the uploaded zips, so a
+        # zip rebuilt since then legitimately fails here: upload and hash the same file.
+        $arch = $null
+        foreach ($line in ($installer -split "`n")) {
+            if ($line -match '^\s*-\s*Architecture:\s*(\S+)') { $arch = $Matches[1]; continue }
+            if ($arch -and $line -match '^\s*InstallerSha256:\s*([0-9A-Fa-f]{64})') {
+                $manifestHash = $Matches[1]
+                $zipName = "PdfLiteViewer-$ExpectedVersion-win-$arch.zip"
+                $localHash = $zipHashes[$zipName]
+                if (-not $localHash) { Fail "winget installer.yaml: no local $zipName to check the $arch InstallerSha256 against" }
+                elseif ($localHash -ne $manifestHash) { Fail "winget installer.yaml: $arch InstallerSha256 $manifestHash != $zipName $localHash" }
+                else { Ok "winget installer.yaml: $arch InstallerSha256 matches $zipName" }
+                $arch = $null
+            }
+        }
     }
 }
 
