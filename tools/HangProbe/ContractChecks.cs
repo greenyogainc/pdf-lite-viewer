@@ -175,17 +175,22 @@ internal static class ContractChecks
             var job = new TaskCompletionSource();
             window.PrintOverride = () => job.Task;
 
+            // Assert transitions, not resting states. Print is still disabled here: the unshown
+            // window's Printer_Changed bails before UpdatePrintEnabled, so its enabled flag
+            // only becomes informative once SetPrintingState(false) recomputes it below.
+            bool cancelBefore = window.CancelBtn.IsEnabled, printerBefore = window.PrinterBox.IsEnabled;
             var printing = window.PrintAsync();
-            bool committed = !window.CancelBtn.IsEnabled && !window.PrintBtn.IsEnabled && !window.PrinterBox.IsEnabled;
-            checks.Add(new Check("print: settings and Cancel lock while the job spools", committed,
-                $"Cancel enabled={window.CancelBtn.IsEnabled}, Print enabled={window.PrintBtn.IsEnabled}, printer box enabled={window.PrinterBox.IsEnabled}"));
+            bool locked = cancelBefore && printerBefore && !window.CancelBtn.IsEnabled && !window.PrinterBox.IsEnabled;
+            checks.Add(new Check("print: settings and Cancel lock while the job spools", locked,
+                $"Cancel {cancelBefore}->{window.CancelBtn.IsEnabled}, printer box {printerBefore}->{window.PrinterBox.IsEnabled}"));
 
             job.SetResult();
             await printing;
             await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
             checks.Add(new Check("print: controls return once the job is spooled",
-                window.CancelBtn.IsEnabled && window.PrinterBox.IsEnabled,
-                $"Cancel enabled={window.CancelBtn.IsEnabled}, printer box enabled={window.PrinterBox.IsEnabled}"));
+                window.CancelBtn.IsEnabled && window.PrinterBox.IsEnabled && window.PrintBtn.IsEnabled,
+                $"Cancel enabled={window.CancelBtn.IsEnabled}, printer box enabled={window.PrinterBox.IsEnabled}, " +
+                $"Print enabled={window.PrintBtn.IsEnabled} (was disabled before the job; recomputed for the selected queue)"));
         }
         catch (Exception ex)
         {

@@ -365,9 +365,11 @@ internal static class Program
                           && frame.PixelWidth >= 1366 && frame.PixelHeight >= 768;
             // The size above can only disagree if the encoder did; the failure a capture
             // really has is content - a black or blank frame where BitBlt copied nothing
-            // useful. A real screenshot of the app has far more than a handful of colours.
+            // useful. Measured on the shipped set with this sampler: the sparsest scene (a
+            // single page full screen) has 59 distinct colours, the busiest 200; a uniform
+            // frame has 1 and a three-level noise frame about 9.
             int colours = DistinctSampleColours(frame);
-            bool contentOk = colours >= 8;
+            bool contentOk = colours >= 16;
             bool captionOk = shot.Caption.Length <= 200;
             if (!sizeOk) { bad++; Console.Error.WriteLine($"BAD SIZE {shot.File}: {frame.PixelWidth}x{frame.PixelHeight}"); }
             if (!contentOk) { bad++; Console.Error.WriteLine($"BLANK CAPTURE {shot.File}: only {colours} distinct colour(s) sampled"); }
@@ -379,7 +381,7 @@ internal static class Program
         return bad;
     }
 
-    /// <summary>Distinct colours on a coarse grid across the frame: a blank capture has one.</summary>
+    /// <summary>Distinct colours on a 16-pixel grid across the frame: a blank capture has one.</summary>
     private static int DistinctSampleColours(BitmapSource frame)
     {
         var bgra = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
@@ -387,8 +389,8 @@ internal static class Program
         var pixels = new byte[stride * bgra.PixelHeight];
         bgra.CopyPixels(pixels, stride, 0);
         var colours = new HashSet<int>();
-        for (int y = 0; y < bgra.PixelHeight; y += 32)
-            for (int x = 0; x < bgra.PixelWidth; x += 32)
+        for (int y = 0; y < bgra.PixelHeight; y += 16)
+            for (int x = 0; x < bgra.PixelWidth; x += 16)
                 colours.Add(BitConverter.ToInt32(pixels, y * stride + x * 4));
         return colours.Count;
     }
