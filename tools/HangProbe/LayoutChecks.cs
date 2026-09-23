@@ -38,8 +38,20 @@ internal static class LayoutChecks
         if (border is null || doc is null)
             return Fail(checks, "no page is visible in the viewport — nothing else can be checked");
 
+        // Guard the divide-by-zero: a PDF whose MediaBox collapses to a zero width is
+        // malformed but legal; the divisor below would otherwise be 0 and produce NaN/Inf
+        // through every subsequent extent/relative-check calculation, yielding opaque messages
+        // ("extent NaNpx") instead of a clear failure here.
+        var pageSize = doc.GetDisplaySize(index);
+        if (pageSize.Width <= 0 || pageSize.Height <= 0)
+        {
+            checks.Add(new Check("page size is positive", false,
+                $"page {index + 1} reports {pageSize.Width}x{pageSize.Height} PDF points — refusing to derive a scale"));
+            return Fail(checks, "top page has zero width or height — extent and centring checks cannot run");
+        }
+
         // Scale the app is drawing at, recovered from a page whose PDF size we know.
-        double scale = border.ActualWidth / (doc.GetDisplaySize(index).Width * 96.0 / 72.0);
+        double scale = border.ActualWidth / (pageSize.Width * 96.0 / 72.0);
         double expectedExtent = 0;
         for (int i = 0; i < pages; i++)
             expectedExtent += doc.GetDisplaySize(i).Height * 96.0 / 72.0 * scale + PageMargin;

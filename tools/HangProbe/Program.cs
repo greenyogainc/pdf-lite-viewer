@@ -31,7 +31,7 @@ internal static class Program
             ? Math.Clamp(n, 1, 20_000)
             : 600;
 
-        var pdf = Path.Combine(Path.GetTempPath(), $"hangprobe-{pages}p.pdf");
+        var pdf = Path.Combine(Path.GetTempPath(), $"hangprobe-{pages}p-{Guid.NewGuid():N}.pdf");
         StressPdf.Create(pages, pdf);
         Console.WriteLine($"stress document: {pdf} ({pages} pages, {new FileInfo(pdf).Length / 1024} KB)");
 
@@ -69,6 +69,17 @@ internal static class Program
         var results = new List<Stall>();
 
         var window = (MainWindow)Application.Current.MainWindow;
+
+        // Mirror StoreShots's gate: the probe assumes a screen large enough to hold its
+        // 1280x900 window unclipped. On a smaller display the layouts centring and scrollbar
+        // checks would silently measure against a cropped viewport.
+        if (SystemParameters.PrimaryScreenWidth < 1280 || SystemParameters.PrimaryScreenHeight < 900)
+        {
+            Console.Error.WriteLine(
+                $"Primary screen is smaller than 1280x900; the probe would measure against a clipped viewport. Aborting.");
+            return 2;
+        }
+
         window.Width = 1280;
         window.Height = 900;
 
@@ -124,7 +135,18 @@ internal static class Program
         window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 137);
         await watch.SettleAsync();
         double offsetBefore = window.Scroller.VerticalOffset;
-        int selectedIndex = int.TryParse(window.PageBox.Text, out int pageBoxPage) ? pageBoxPage - 1 : pages / 2;
+        // A non-numeric PageBox (e.g. "Page 1/600" added for clarity, or any future
+        // localisation of the value) must fail the check loudly, not silently pivot to
+        // pages / 2 and pass against an unrelated chapter.
+        if (!int.TryParse(window.PageBox.Text, out int pageBoxPage))
+        {
+            evictionChecks.Add(new Check("sidebar scrolling never moves the document", false,
+                $"PageBox text '{window.PageBox.Text}' is not a pure integer; the sidebar-echo target would have been silently re-pivoted."));
+            evictionChecks.Add(new Check("selecting a different chapter navigates", false,
+                $"PageBox text '{window.PageBox.Text}' is not a pure integer; cannot derive a target page."));
+            return Report(results, evictionChecks);
+        }
+        int selectedIndex = pageBoxPage - 1;
         if (AboutChecks.FindChildren<ScrollViewer>(window.ChapterTree).FirstOrDefault() is { } treeScroller)
         {
             int echoBefore = window.ChapterEchoCount;
@@ -196,12 +218,23 @@ internal static class Program
         }));
         // Printer discovery moved off the UI thread, so verify it still lands in the UI —
         // a silent failure here would leave the Print button dead.
-        var printerChecks = PrintPreviewChecks(preview!);
-        results.Add(await watch.MeasureAsync("close print preview", Ms(400), () => preview!.Close()));
+        // Wrap the show + checks in try/finally so a budget throw on open does not leak a
+        // parented preview window into the rest of the run.
+        var printerChecks = new List<Check>();
+        try
+        {
+            printerChecks.AddRange(PrintPreviewChecks(preview!));
+        }
+        finally
+        {
+            try { preview?.Close(); } catch { /* the open itself threw — nothing to close */ }
+        }
 
         // The job renders every selected page at 300 DPI. Same paginator and XPS path a
         // real print takes, written to a file so the probe needs no printer.
-        var xps = Path.Combine(Path.GetTempPath(), "hangprobe-print.xps");
+        // Per-run unique suffix: the previous fixed name was shared across parallel CI shards
+        // and would either race the print spooler or hand the second probe a stale file.
+        var xps = Path.Combine(Path.GetTempPath(), $"hangprobe-print-{Guid.NewGuid():N}.xps");
         var printPages = Enumerable.Range(0, Math.Min(25, pages)).ToList();
         results.Add(await watch.MeasureAsync($"print {printPages.Count} pages at 300 dpi", Ms(400),
             () => PrintJob.WriteXpsAsync(doc, printPages, PrintJob.FallbackPaper, xps)));

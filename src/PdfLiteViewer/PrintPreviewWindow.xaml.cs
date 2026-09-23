@@ -22,6 +22,7 @@ public partial class PrintPreviewWindow : Window
     private List<int> _pages = new();
     private int _previewIndex;
     private CancellationTokenSource _cts = new();
+    private CancellationTokenSource? _printCts;
     private bool _printing;
     private int _showGeneration;
 
@@ -256,13 +257,28 @@ public partial class PrintPreviewWindow : Window
         bool draft = DraftCheck.IsChecked == true;
         var jobName = System.IO.Path.GetFileName(_doc.FilePath);
 
+        // A separate CTS from the preview-render one: the print needs to survive preview
+        // updates and only end on user cancel (window close) or spooler completion.
+        _printCts?.Cancel();
+        _printCts?.Dispose();
+        _printCts = new CancellationTokenSource();
+        var printCt = _printCts.Token;
+
         SetPrintingState(true);
         try
         {
             // Rendering every page at 300 DPI used to happen here, on the UI thread.
             await (PrintOverride?.Invoke()
-                   ?? PrintJob.RunAsync(_doc, pages, queueName, copies, grayscale, draft, jobName));
+                   ?? PrintJob.RunAsync(_doc, pages, queueName, copies, grayscale, draft, jobName, printCt));
+            // Both successful completion and a user-driven cancellation land here; the
+            // cooperative cancellation surfaces as OperationCanceledException below, not
+            // through this line.
             if (IsLoaded) Close();
+        }
+        catch (OperationCanceledException) when (printCt.IsCancellationRequested)
+        {
+            // User closed the window during the print; the paginator cooperated. Nothing
+            // left to do here - the await already surfaced the cancellation.
         }
         catch (Exception ex)
         {
@@ -276,10 +292,21 @@ public partial class PrintPreviewWindow : Window
     }
 
     /// <summary>
-    /// Once Print is clicked the job is committed: the settings, Print and Cancel go dark
-    /// until the spooler has the whole document (Cancel used to stay live and close the
-    /// window while the job kept printing). The preview itself stays responsive, and the
-    /// title-bar close still works - it does not stop the job either.
+    /// Cancels any in-flight print job. The paginator checks the token between pages, so a
+    /// long job stops on the next page boundary instead of pinning the foreground thread.
+    /// </summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        _printCts?.Cancel();
+        base.OnClosing(e);
+    }
+
+    /// <summary>
+    /// Once Print is clicked the settings, Print and Cancel go dark until the spooler has
+    /// the whole document — starting a second print while one is spooling is not allowed.
+    /// The preview itself stays responsive, and the title-bar close now cancels the
+    /// in-flight job via <see cref="OnClosing"/>, so the print stops at the next page
+    /// boundary instead of pinning the foreground thread through app shutdown.
     /// </summary>
     private void SetPrintingState(bool printing)
     {

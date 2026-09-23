@@ -83,9 +83,15 @@ internal static class PrintJob
             : new Size(w, h);
     }
 
-    /// <summary>Sends the job. The returned task completes when the spooler has the whole document.</summary>
+    /// <summary>
+    /// Sends the job. The returned task completes when the spooler has the whole document,
+    /// or the supplied <paramref name="cancellationToken"/> is signaled (in which case the
+    /// paginator throws <see cref="OperationCanceledException"/> between pages and the
+    /// print thread unwinds cleanly).
+    /// </summary>
     public static Task RunAsync(PdfDoc doc, IReadOnlyList<int> pages, string queueName,
-        int copies, bool grayscale, bool draft, string jobName)
+        int copies, bool grayscale, bool draft, string jobName,
+        CancellationToken cancellationToken = default)
     {
         // Snapshot on the calling (UI) thread: the preview can be closed and the view rotated
         // while the job is still producing pages on its own thread, and every sheet must
@@ -105,24 +111,31 @@ internal static class PrintJob
             queue.CurrentJobSettings.Description = jobName;
 
             var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-            writer.Write(new PdfPrintPaginator(doc, pages, PaperFor(ticket), rotation), ticket);
-        });
+            writer.Write(new PdfPrintPaginator(doc, pages, PaperFor(ticket), rotation)
+            {
+                CancellationToken = cancellationToken
+            }, ticket);
+        }, cancellationToken);
     }
 
     /// <summary>
     /// Same threading and pagination path as <see cref="RunAsync"/>, writing to an XPS file
     /// instead of a queue. Used by tools/HangProbe to exercise print rendering without a printer.
     /// </summary>
-    internal static Task WriteXpsAsync(PdfDoc doc, IReadOnlyList<int> pages, Size paper, string path)
+    internal static Task WriteXpsAsync(PdfDoc doc, IReadOnlyList<int> pages, Size paper, string path,
+        CancellationToken cancellationToken = default)
     {
         var rotation = doc.Rotation;
         return RunOnStaThread(() =>
         {
             File.Delete(path);
             using var xps = new XpsDocument(path, FileAccess.ReadWrite);
-            XpsDocument.CreateXpsDocumentWriter(xps).Write(new PdfPrintPaginator(doc, pages, paper, rotation));
+            XpsDocument.CreateXpsDocumentWriter(xps).Write(new PdfPrintPaginator(doc, pages, paper, rotation)
+            {
+                CancellationToken = cancellationToken
+            });
             xps.Close();
-        });
+        }, cancellationToken);
     }
 
     private static PrintQueue? ResolveQueue(PrintServer server, string name)
@@ -149,15 +162,24 @@ internal static class PrintJob
     /// XPS serialization needs an STA thread, and every visual it serializes must belong to
     /// that thread — so the job gets a thread of its own rather than borrowing a pool one.
     /// </summary>
-    private static Task RunOnStaThread(Action work)
+    private static Task RunOnStaThread(Action work, CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource();
         var thread = new Thread(() =>
         {
             try
             {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    tcs.TrySetCanceled(cancellationToken);
+                    return;
+                }
                 work();
                 tcs.SetResult();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                tcs.TrySetCanceled(cancellationToken);
             }
             catch (Exception ex)
             {

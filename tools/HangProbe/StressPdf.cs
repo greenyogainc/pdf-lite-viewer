@@ -84,7 +84,11 @@ internal static class StressPdf
             .Append(xrefPos).Append("\n%%EOF\n");
         Write(body, xref.ToString());
 
-        File.WriteAllBytes(path, body.ToArray());
+        // Stream directly to disk rather than allocating a second byte[] of the entire body.
+        // At the documented 20k-page cap the in-memory stream is ~19 MB; ToArray() would
+        // duplicate that, risking OOM on small CI runners.
+        using (var file = File.Create(path))
+            body.WriteTo(file);
         return path;
     }
 

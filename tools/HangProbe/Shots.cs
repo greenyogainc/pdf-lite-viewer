@@ -23,7 +23,10 @@ internal static class Shots
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
 
-        var path = Path.Combine(Path.GetTempPath(), $"hangprobe-{name}.png");
+        // Per-run unique suffix so concurrent probes and reruns do not collide on the
+        // fixed name (continuous / facing / single-zoomed); the caller still gets the
+        // stable per-scene filename via the returned path.
+        var path = Path.Combine(Path.GetTempPath(), $"hangprobe-{Guid.NewGuid():N}-{name}.png");
         using var file = File.Create(path);
         encoder.Save(file);
         return path;
