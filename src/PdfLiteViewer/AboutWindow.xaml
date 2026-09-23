@@ -142,7 +142,7 @@
                                Source="pack://application:,,,/PdfLiteViewer;component/Assets/greenyoga-mark.png"
                                AutomationProperties.Name="{local:Loc AboutLogoName}"/>
                         <StackPanel VerticalAlignment="Center" Margin="18,0,0,0">
-                            <TextBlock Text="PDF Lite Viewer" Foreground="White" FontSize="24" FontWeight="SemiBold"/>
+                            <TextBlock Text="{local:Loc AppTitle}" Foreground="White" FontSize="24" FontWeight="SemiBold"/>
                             <TextBlock x:Name="VersionText" Foreground="{StaticResource BarFg}" FontSize="13" Margin="0,4,0,0"/>
                             <TextBlock Text="{local:Loc AboutPublisher}" Foreground="{StaticResource DimFg}" FontSize="13" Margin="0,2,0,0"/>
                         </StackPanel>

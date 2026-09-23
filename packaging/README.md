@@ -60,8 +60,13 @@ After the GitHub release exists (so the URLs are immutable):
    block unchanged.
 2. Validate: `winget validate --manifest packaging\winget\manifests\g\GreenYogaInc\PDFLiteViewer\<version>\`
 3. Submit a PR to https://github.com/microsoft/winget-pkgs under
-   `manifests/g/GreenYogaInc/PDFLiteViewer/<version>/` (only when separately
-   authorized).
+    `manifests/g/GreenYogaInc/PDFLiteViewer/<version>/` (only when separately
+    authorized).
+
+Note: 1.0.13 predates the `ArchiveBinariesDependOnPath: true` flag and is already
+merged upstream as-is, so its in-repo manifest does not (and cannot) carry it.
+Copy from 1.0.16 — *not* 1.0.13 — when generating the manifest template for a new
+release.
 
 ## Release verification
 
