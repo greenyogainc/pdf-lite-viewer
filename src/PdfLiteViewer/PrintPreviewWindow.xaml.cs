@@ -258,9 +258,10 @@ public partial class PrintPreviewWindow : Window
         var jobName = System.IO.Path.GetFileName(_doc.FilePath);
 
         // A separate CTS from the preview-render one: the print needs to survive preview
-        // updates and only end on user cancel (window close) or spooler completion.
-        _printCts?.Cancel();
-        _printCts?.Dispose();
+        // updates and only end on user cancel (window close) or spooler completion. The
+        // Print button is disabled while a print is spooling (UpdatePrintEnabled), so a
+        // re-entrant call here is impossible — `_printCts` is always null on entry, no
+        // previous CTS to cancel or dispose.
         _printCts = new CancellationTokenSource();
         var printCt = _printCts.Token;
 

@@ -156,11 +156,12 @@ Total candidates: 25. Confirmed: 13. Refuted: 12.
   window-close during spooling stops the job at the next page boundary.
 
 ### `153defb` — i18n + packaging note
-- **AboutWindow.xaml:145**: bind the brand heading to `{local:Loc AppTitle}` so a
-  future translator who localizes AppTitle sees this line follow along. Every
-  Strings.*.resx already has AppTitle in the translated language, so there is no
-  user-facing change today; the fix prevents the one remaining English literal in
-  AboutWindow from drifting later.
+- **AboutWindow.xaml:145**: bind the brand heading to `{local:Loc AppTitle}` so
+  any future translator who localizes AppTitle sees this XAML line follow along.
+  AppTitle is the English brand string across every `Strings.*.resx` (PDF Lite
+  Viewer) — that is the project's documented policy for product brand names. The
+  binding makes the About heading honour that policy and keeps the heading from
+  drifting later if a future PR introduces a stale literal in code-behind.
 - **Strings.{ja,ko,zh-Hans,zh-Hant}.resx**: `PagesLabel`, `PrinterLabel`,
   `CopiesLabel` switched from ASCII `:` (U+003A) to full-width `：` (U+FF1A). The
   ASCII colon renders at roughly half the optical mass of its CJK neighbours and

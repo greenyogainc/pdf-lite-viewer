@@ -36,7 +36,10 @@ internal static class ContractChecks
     private static Check ZeroPageDocumentRejected()
     {
         const string name = "zero-page document is rejected at open";
-        var path = Path.Combine(Path.GetTempPath(), "hangprobe-zero-pages.pdf");
+        // Per-run Guid suffix on the temp fixture: the file is owned by this function
+        // (write+read+delete), but parallel CI shards running the same probe would
+        // otherwise race on the same fixed path.
+        var path = Path.Combine(Path.GetTempPath(), $"hangprobe-zero-pages-{Guid.NewGuid():N}.pdf");
         try
         {
             WriteZeroPagePdf(path);

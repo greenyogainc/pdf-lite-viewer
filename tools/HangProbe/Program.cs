@@ -224,6 +224,11 @@ internal static class Program
         try
         {
             printerChecks.AddRange(PrintPreviewChecks(preview!));
+            // Measure the close path on its own row. A regression in Window.Close() (a
+            // future OnClosing handler doing I/O, for example) would otherwise show up
+            // only as a leaked window — not a per-scenario hang against this budget.
+            results.Add(await watch.MeasureAsync("close print preview", Ms(400),
+                () => preview!.Close()));
         }
         finally
         {

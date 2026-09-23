@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using SkiaSharp;
@@ -49,6 +48,16 @@ public sealed class PdfDoc
         // from separate PDFium calls: pin the invariant here rather than in a layout pass.
         if (PageSizes.Count != PageCount)
             throw new UnreadablePagesException($"The document reports {PageCount} pages but {PageSizes.Count} page sizes.");
+        // A PDF whose MediaBox collapses to 0 on either axis is malformed but legal. The
+        // layouts (FitZoom, SizeItems) divide by width and height, so a 0×0 page propagates
+        // NaN/Infinity into the WPF extent pipeline and breaks the viewport. Refuse it here
+        // so the existing "could not open" path reports the malformed file.
+        for (int i = 0; i < PageSizes.Count; i++)
+        {
+            var (w, h) = PageSizes[i];
+            if (w <= 0 || h <= 0)
+                throw new UnreadablePagesException($"Page {i + 1} has non-positive size ({w:F2} × {h:F2} points).");
+        }
     }
 
     /// <summary>
@@ -155,35 +164,39 @@ public sealed class PdfDoc
             // racing reader either sees our new Lazy or our predecessor's Lazy — never a
             // freshly-created one that has yet to do work. The whole point of the lazy is
             // to ensure the parse runs at most once even with concurrent first callers.
+            // ct is captured from the first thread that wins the lock: that thread's
+            // ct gets the per-phase checks during the parse, so a "switch documents
+            // quickly" sequence that cancels mid-parse still aborts via the phase checks.
+            // Concurrent later callers observe the cached list once Value returns.
             lock (_chaptersGate)
             {
                 lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
-                    () => BuildChapters(untitledFallback),
+                    () => BuildChapters(ct, untitledFallback),
                     LazyThreadSafetyMode.ExecutionAndPublication);
             }
         }
 
-        // Lazy.Value ignores CancellationToken, so the only way to honor ct here is to
-        // check it before accessing Value. The parse itself runs to completion once the
-        // first caller wins the lazy; later callers just observe the cached list. The
-        // caller's Task.Run already gates the entire call on ct, so the practical
-        // cancellation surface is what the user already expects for a chapter load.
         ct.ThrowIfCancellationRequested();
         return lazy.Value;
     }
 
-    private List<ChapterItem> BuildChapters(string untitledFallback)
+    private List<ChapterItem> BuildChapters(CancellationToken ct, string untitledFallback)
     {
+        ct.ThrowIfCancellationRequested();
+
         // SkipMissingFonts: outline extraction never needs glyph data; avoids font-parse
         // work PdfPig would otherwise do while opening large documents.
         using var pdf = PdfDocument.Open(_bytes, new ParsingOptions { SkipMissingFonts = true });
+        ct.ThrowIfCancellationRequested();
 
         var roots = new List<ChapterItem>();
         if (!pdf.TryGetBookmarks(out var bookmarks, allowContainerNode: true))
             return roots;
 
+        ct.ThrowIfCancellationRequested();
+
         int order = 0;
-        MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, default, untitledFallback);
+        MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, ct, untitledFallback);
         return roots;
     }
 
@@ -227,17 +240,19 @@ public sealed class PdfDoc
     }
 
     /// <summary>
-    /// Copies the Skia pixel storage into a GC-owned buffer and returns a frozen WPF
-    /// <see cref="BitmapSource"/> built over that managed copy. The native buffer is
-    /// read once, via <see cref="Marshal.Copy(int, byte[], int, int)"/>, so disposing
-    /// the source <see cref="SKBitmap"/> after this returns is safe — WIC will not be
-    /// asked to read freed memory when the bitmap is realized by the virtualizing panel.
+    /// Hands the Skia pixel storage to WIC and returns a frozen <see cref="BitmapSource"/>.
+    /// The IntPtr overload of <c>BitmapSource.Create</c> forwards the pointer to
+    /// <c>IWICImagingFactory::CreateBitmapFromMemory</c>, which copies the bytes into a
+    /// WIC-owned allocation before returning — so disposing the source <see cref="SKBitmap"/>
+    /// after this returns is safe. An intermediate managed copy would only add a per-render
+    /// allocation that WIC then throws away.
     /// </summary>
     private static BitmapSource ToBitmapSource(SKBitmap bmp)
     {
         // PDFtoImage hands back whatever format the converter chose; normalize to BGRA so
         // the byte order always matches WPF's Pbgra32. The temp bitmap owns its own pixels,
-        // so disposing it before Marshal.Copy below is safe.
+        // so the IntPtr handed to Create() below remains valid for the duration of the
+        // WIC copy.
         SKBitmap src = bmp;
         SKBitmap? converted = null;
         try
@@ -249,19 +264,10 @@ public sealed class PdfDoc
                 src = converted;
             }
 
-            int stride = src.RowBytes;
-            int length = stride * src.Height;
-            var managed = new byte[length];
-            Marshal.Copy(src.GetPixels(), managed, 0, length);
-
-            // The Array overload copies the input buffer into a WIC-owned allocation, so
-            // the managed array is only needed during this call. Stride is derived from
-            // width * bytesPerPixel for tightly-packed pixel formats like Pbgra32, which
-            // always matches the row length this method hands in.
             var bs = BitmapSource.Create(
                 src.Width, src.Height, 96, 96,
                 PixelFormats.Pbgra32, null,
-                managed, stride);
+                src.GetPixels(), src.RowBytes * src.Height, src.RowBytes);
             bs.Freeze();
             return bs;
         }
