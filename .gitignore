@@ -8,3 +8,9 @@ __pycache__/
 
 # VarAlign local store (machine-local variable-tracking data)
 .varmem/*
+
+# Editor + agent tooling local state (per AGENTS.md: .kilo/ carries plans and
+# worktrees for the local agent runs; not repo source).
+.kilo/
+.kilocode/
+.opencode/

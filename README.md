@@ -50,6 +50,21 @@ applies to it. Nothing is loaded until you ask.
 
 ## What's new
 
+- **1.0.17** (2026-09-23) — Bug fixes from another full-codebase review: PDFs whose page
+  MediaBox collapses to a zero width or height are refused at open time instead of
+  breaking the viewport with NaN extents; the print preview window now cooperatively
+  cancels an in-flight print when it is closed, so a long-running job no longer
+  pins the foreground thread through app shutdown; the chapter outline cancellation
+  thread is restored to honor a mid-parse cancel on a large outline; a per-page
+  `Marshal.Copy` + managed byte array was removed from the page render path
+  (WPF's `BitmapSource.Create(IntPtr, ...)` already eagerly copies via
+  `IWICImagingFactory::CreateBitmapFromMemory`, so the intermediate copy was
+  extra work WIC then threw away — ~32 MB saved per Letter-size page at 300 DPI);
+  cross-thread mutations to `PageItem` from the render continuation are now
+  marshalled back to the UI thread before the `INPC` setter fires. HangProbe
+  regression gate: per-run `Guid.NewGuid():N` suffix on the zero-page fixture
+  (the same parallel-shard race fix already applied to the stress PDF, print
+  XPS and PNG capture); `close print preview` stall-measurement row restored.
 - **1.0.16** (2026-09-03) — Fixes from a full codebase review: print jobs keep the rotation
   they were started with (rotating the view while a job spooled could rotate the remaining
   sheets); a PDF with no pages is refused with a clear message instead of leaving the viewer
