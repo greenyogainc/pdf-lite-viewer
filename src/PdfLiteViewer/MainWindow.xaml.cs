@@ -1206,16 +1206,27 @@ public partial class MainWindow : Window
             {
                 var bmp = await doc.RenderPageAsync(item.PageIndex, targetPx, ct);
                 if (ct.IsCancellationRequested) return;
-                item.Image = bmp;
-                item.RenderedPixelWidth = targetPx;
+
+                // PdfDoc.RenderPageAsync ConfigureAwaits(false) all the way through, so the
+                // continuation after the await is on a thread-pool thread. Mutating the
+                // PageItem (an INPC binding source observed by the UI) off the dispatcher
+                // races the WPF binding engine on weakly-ordered CPUs — marshal back here
+                // for the assignment so the property writes are visible to the binding.
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    item.Image = bmp;
+                    item.RenderedPixelWidth = targetPx;
+                }, DispatcherPriority.DataBind);
             }
             catch (OperationCanceledException)
             {
                 return;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Skip pages that fail to render rather than crashing the viewer.
+                // Skip pages that fail to render rather than crashing the viewer, but
+                // make the skip observable to support and to regression tests.
+                App.LogError(ex);
             }
         }
     }

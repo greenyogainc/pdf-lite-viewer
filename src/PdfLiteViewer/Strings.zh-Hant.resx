@@ -53,13 +53,13 @@
 詳細資訊已記錄至:
 {1}</value></data>
   <data name="PrintWindowTitleFormat" xml:space="preserve"><value>列印 — {0}</value></data>
-  <data name="PagesLabel" xml:space="preserve"><value>頁面:</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>頁面：</value></data>
   <data name="RangeAll" xml:space="preserve"><value>所有頁面</value></data>
   <data name="RangeCurrent" xml:space="preserve"><value>目前頁面</value></data>
   <data name="RangeCustom" xml:space="preserve"><value>自訂</value></data>
   <data name="RangeBoxTooltip" xml:space="preserve"><value>例如 1-5, 8, 11-13</value></data>
-  <data name="PrinterLabel" xml:space="preserve"><value>印表機:</value></data>
-  <data name="CopiesLabel" xml:space="preserve"><value>份數:</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>印表機：</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>份數：</value></data>
   <data name="BwCheckbox" xml:space="preserve"><value>黑白</value></data>
   <data name="BwCheckboxTooltip" xml:space="preserve"><value>以黑白列印 (灰階)</value></data>
   <data name="DraftCheckbox" xml:space="preserve"><value>草稿</value></data>

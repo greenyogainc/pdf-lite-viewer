@@ -119,9 +119,22 @@ internal static class Program
         var preview = new PrintPreviewWindow(doc, 2) { Owner = window };
         preview.Show();
         await WaitUntilAsync(() => preview.PrinterBox.Items.Count > 0, TimeSpan.FromSeconds(15));
-        // A generic, non-personal queue name for the screenshot.
+        // A generic, non-personal queue name for the screenshot. Substring match so
+        // Windows variants ("Microsoft Print to PDF", "Microsoft Print to PDF (redirected)")
+        // all qualify; fail the run if no PDF printer is present so the scene can't capture
+        // an arbitrary local printer under the "generic" caption.
+        string? pdfPrinter = null;
         foreach (var item in preview.PrinterBox.Items)
-            if (item is string s && s == "Microsoft Print to PDF") { preview.PrinterBox.SelectedItem = s; break; }
+            if (item is string s && s.Contains("Print to PDF", StringComparison.OrdinalIgnoreCase))
+            { pdfPrinter = s; preview.PrinterBox.SelectedItem = s; break; }
+        if (pdfPrinter is null)
+        {
+            Console.Error.WriteLine(
+                $"scene 3: no printer containing 'Print to PDF' found in the combobox (saw: " +
+                $"[{string.Join(", ", preview.PrinterBox.Items.Cast<object>())}]). Aborting.");
+            preview.Close();
+            return 1;
+        }
         await RenderPauseAsync(1400);
         Capture(window, outDir, "3-print-preview.png",
             "Built-in print preview: pick a printer, page range and copies, black & white or draft — and see exactly how each page lands on paper.");

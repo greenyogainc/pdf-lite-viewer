@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace PdfLiteViewer;
@@ -40,6 +41,27 @@ public partial class App : Application
             args.Handled = true;   // keep the viewer alive
         };
 
+        // Non-UI thread exceptions (a Task.Run body that throws past an await, a thread-pool
+        // worker that faults) would otherwise terminate the process via UnhandledException
+        // with no diagnostic. Logging here gives support something to look at, even if the
+        // shutdown that follows is the OS handling a crash that we could not contain.
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                LogError(ex);
+            else
+                LogError(new Exception($"Non-Exception throw on background thread: {args.ExceptionObject}"));
+        };
+
+        // Tasks that fault and are never observed (.Value, await, or Exception) escalate
+        // to process termination on .NET 10. Subscribe and observe: log everything we see
+        // so a flaky renderer cannot take the viewer down unnoticed.
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            LogError(args.Exception);
+            args.SetObserved();
+        };
+
         base.OnStartup(e);
     }
 
@@ -58,11 +80,19 @@ public partial class App : Application
     private static string LogPath =>
         Path.Combine(Path.GetTempPath(), "PdfLiteViewer.log");
 
+    // Serializes concurrent AppendAllText calls (File.AppendAllText opens, seeks, writes,
+    // and closes on every invocation; two threads racing on the same file would interleave
+    // bytes inside an open/write/close cycle and corrupt the log).
+    private static readonly object _logLock = new();
+
     internal static void LogError(Exception ex)
     {
         try
         {
-            File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n\n");
+            lock (_logLock)
+            {
+                File.AppendAllText(LogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n\n");
+            }
         }
         catch
         {

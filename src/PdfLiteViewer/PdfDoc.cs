@@ -17,8 +17,10 @@ public sealed class PdfDoc
 
     private readonly byte[] _bytes;
     private readonly object _chaptersGate = new();
-    private List<ChapterItem>? _chaptersCache;
-    private bool _chaptersCacheEmpty;
+    // First-completed parse wins; every other caller (concurrent probe, late sidebar
+    // open, etc.) blocks on .Value and gets the same list. ExecutionAndPublication keeps
+    // a duplicate parse from ever racing the first one.
+    private Lazy<List<ChapterItem>>? _chaptersLazy;
 
     public string FilePath { get; }
     public int PageCount { get; }
@@ -46,6 +48,16 @@ public sealed class PdfDoc
         // from separate PDFium calls: pin the invariant here rather than in a layout pass.
         if (PageSizes.Count != PageCount)
             throw new UnreadablePagesException($"The document reports {PageCount} pages but {PageSizes.Count} page sizes.");
+        // A PDF whose MediaBox collapses to 0 on either axis is malformed but legal. The
+        // layouts (FitZoom, SizeItems) divide by width and height, so a 0×0 page propagates
+        // NaN/Infinity into the WPF extent pipeline and breaks the viewport. Refuse it here
+        // so the existing "could not open" path reports the malformed file.
+        for (int i = 0; i < PageSizes.Count; i++)
+        {
+            var (w, h) = PageSizes[i];
+            if (w <= 0 || h <= 0)
+                throw new UnreadablePagesException($"Page {i + 1} has non-positive size ({w:F2} × {h:F2} points).");
+        }
     }
 
     /// <summary>
@@ -69,9 +81,16 @@ public sealed class PdfDoc
 
     public async Task<BitmapSource> RenderPageAsync(int pageIndex, int targetPixelWidth, CancellationToken ct)
     {
-        await RenderLock.WaitAsync(ct).ConfigureAwait(false);
+        // Track acquisition explicitly. SemaphoreSlim.WaitAsync(ct) throws
+        // OperationCanceledException on token cancellation WITHOUT decrementing the semaphore,
+        // so an unconditional RenderLock.Release() in the finally block would call Release on
+        // a lock whose count is still at its maximum — SemaphoreFullException — and the real
+        // cancellation would be hidden behind an unrelated, unobservable fault in the caller.
+        bool acquired = false;
         try
         {
+            await RenderLock.WaitAsync(ct).ConfigureAwait(false);
+            acquired = true;
             ct.ThrowIfCancellationRequested();
             var rotation = Rotation;
             return await Task.Run(() =>
@@ -92,7 +111,7 @@ public sealed class PdfDoc
         }
         finally
         {
-            RenderLock.Release();
+            if (acquired) RenderLock.Release();
         }
     }
 
@@ -136,37 +155,48 @@ public sealed class PdfDoc
     /// </param>
     public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
     {
-        lock (_chaptersGate)
+        // Fast path: the parse has already been completed; even a torn read here is fine,
+        // because every later reader of the field will see at least this lazy.
+        var lazy = _chaptersLazy;
+        if (lazy is null)
         {
-            if (_chaptersCache is not null)
-                return _chaptersCache;
-            if (_chaptersCacheEmpty)
-                return new List<ChapterItem>();
+            // Double-check inside the lock; the field is assigned under the gate so a
+            // racing reader either sees our new Lazy or our predecessor's Lazy — never a
+            // freshly-created one that has yet to do work. The whole point of the lazy is
+            // to ensure the parse runs at most once even with concurrent first callers.
+            // ct is captured from the first thread that wins the lock: that thread's
+            // ct gets the per-phase checks during the parse, so a "switch documents
+            // quickly" sequence that cancels mid-parse still aborts via the phase checks.
+            // Concurrent later callers observe the cached list once Value returns.
+            lock (_chaptersGate)
+            {
+                lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
+                    () => BuildChapters(ct, untitledFallback),
+                    LazyThreadSafetyMode.ExecutionAndPublication);
+            }
         }
 
+        ct.ThrowIfCancellationRequested();
+        return lazy.Value;
+    }
+
+    private List<ChapterItem> BuildChapters(CancellationToken ct, string untitledFallback)
+    {
         ct.ThrowIfCancellationRequested();
 
         // SkipMissingFonts: outline extraction never needs glyph data; avoids font-parse
         // work PdfPig would otherwise do while opening large documents.
         using var pdf = PdfDocument.Open(_bytes, new ParsingOptions { SkipMissingFonts = true });
-
         ct.ThrowIfCancellationRequested();
 
         var roots = new List<ChapterItem>();
         if (!pdf.TryGetBookmarks(out var bookmarks, allowContainerNode: true))
-        {
-            lock (_chaptersGate) { _chaptersCacheEmpty = true; }
             return roots;
-        }
 
         ct.ThrowIfCancellationRequested();
 
         int order = 0;
         MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, ct, untitledFallback);
-
-        ct.ThrowIfCancellationRequested();
-
-        lock (_chaptersGate) { _chaptersCache = roots; }
         return roots;
     }
 
@@ -209,17 +239,31 @@ public sealed class PdfDoc
         }
     }
 
+    /// <summary>
+    /// Hands the Skia pixel storage to WIC and returns a frozen <see cref="BitmapSource"/>.
+    /// The IntPtr overload of <c>BitmapSource.Create</c> forwards the pointer to
+    /// <c>IWICImagingFactory::CreateBitmapFromMemory</c>, which copies the bytes into a
+    /// WIC-owned allocation before returning — so disposing the source <see cref="SKBitmap"/>
+    /// after this returns is safe. An intermediate managed copy would only add a per-render
+    /// allocation that WIC then throws away.
+    /// </summary>
     private static BitmapSource ToBitmapSource(SKBitmap bmp)
     {
+        // PDFtoImage hands back whatever format the converter chose; normalize to BGRA so
+        // the byte order always matches WPF's Pbgra32. The temp bitmap owns its own pixels,
+        // so the IntPtr handed to Create() below remains valid for the duration of the
+        // WIC copy.
         SKBitmap src = bmp;
-        if (bmp.ColorType != SKColorType.Bgra8888)
-        {
-            src = new SKBitmap(bmp.Width, bmp.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            bmp.CopyTo(src, SKColorType.Bgra8888);
-        }
-
+        SKBitmap? converted = null;
         try
         {
+            if (bmp.ColorType != SKColorType.Bgra8888)
+            {
+                converted = new SKBitmap(bmp.Width, bmp.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+                bmp.CopyTo(converted, SKColorType.Bgra8888);
+                src = converted;
+            }
+
             var bs = BitmapSource.Create(
                 src.Width, src.Height, 96, 96,
                 PixelFormats.Pbgra32, null,
@@ -229,8 +273,7 @@ public sealed class PdfDoc
         }
         finally
         {
-            if (!ReferenceEquals(src, bmp))
-                src.Dispose();
+            converted?.Dispose();
         }
     }
 }

@@ -53,13 +53,13 @@
 詳細はログに記録されました:
 {1}</value></data>
   <data name="PrintWindowTitleFormat" xml:space="preserve"><value>印刷 — {0}</value></data>
-  <data name="PagesLabel" xml:space="preserve"><value>ページ:</value></data>
+  <data name="PagesLabel" xml:space="preserve"><value>ページ：</value></data>
   <data name="RangeAll" xml:space="preserve"><value>すべてのページ</value></data>
   <data name="RangeCurrent" xml:space="preserve"><value>現在のページ</value></data>
   <data name="RangeCustom" xml:space="preserve"><value>カスタム</value></data>
   <data name="RangeBoxTooltip" xml:space="preserve"><value>例: 1-5, 8, 11-13</value></data>
-  <data name="PrinterLabel" xml:space="preserve"><value>プリンター:</value></data>
-  <data name="CopiesLabel" xml:space="preserve"><value>部数:</value></data>
+  <data name="PrinterLabel" xml:space="preserve"><value>プリンター：</value></data>
+  <data name="CopiesLabel" xml:space="preserve"><value>部数：</value></data>
   <data name="BwCheckbox" xml:space="preserve"><value>白黒</value></data>
   <data name="BwCheckboxTooltip" xml:space="preserve"><value>白黒で印刷 (グレースケール)</value></data>
   <data name="DraftCheckbox" xml:space="preserve"><value>下書き</value></data>
