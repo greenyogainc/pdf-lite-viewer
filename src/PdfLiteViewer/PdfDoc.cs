@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using SkiaSharp;
@@ -17,8 +18,10 @@ public sealed class PdfDoc
 
     private readonly byte[] _bytes;
     private readonly object _chaptersGate = new();
-    private List<ChapterItem>? _chaptersCache;
-    private bool _chaptersCacheEmpty;
+    // First-completed parse wins; every other caller (concurrent probe, late sidebar
+    // open, etc.) blocks on .Value and gets the same list. ExecutionAndPublication keeps
+    // a duplicate parse from ever racing the first one.
+    private Lazy<List<ChapterItem>>? _chaptersLazy;
 
     public string FilePath { get; }
     public int PageCount { get; }
@@ -69,9 +72,16 @@ public sealed class PdfDoc
 
     public async Task<BitmapSource> RenderPageAsync(int pageIndex, int targetPixelWidth, CancellationToken ct)
     {
-        await RenderLock.WaitAsync(ct).ConfigureAwait(false);
+        // Track acquisition explicitly. SemaphoreSlim.WaitAsync(ct) throws
+        // OperationCanceledException on token cancellation WITHOUT decrementing the semaphore,
+        // so an unconditional RenderLock.Release() in the finally block would call Release on
+        // a lock whose count is still at its maximum — SemaphoreFullException — and the real
+        // cancellation would be hidden behind an unrelated, unobservable fault in the caller.
+        bool acquired = false;
         try
         {
+            await RenderLock.WaitAsync(ct).ConfigureAwait(false);
+            acquired = true;
             ct.ThrowIfCancellationRequested();
             var rotation = Rotation;
             return await Task.Run(() =>
@@ -92,7 +102,7 @@ public sealed class PdfDoc
         }
         finally
         {
-            RenderLock.Release();
+            if (acquired) RenderLock.Release();
         }
     }
 
@@ -136,37 +146,44 @@ public sealed class PdfDoc
     /// </param>
     public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
     {
-        lock (_chaptersGate)
+        // Fast path: the parse has already been completed; even a torn read here is fine,
+        // because every later reader of the field will see at least this lazy.
+        var lazy = _chaptersLazy;
+        if (lazy is null)
         {
-            if (_chaptersCache is not null)
-                return _chaptersCache;
-            if (_chaptersCacheEmpty)
-                return new List<ChapterItem>();
+            // Double-check inside the lock; the field is assigned under the gate so a
+            // racing reader either sees our new Lazy or our predecessor's Lazy — never a
+            // freshly-created one that has yet to do work. The whole point of the lazy is
+            // to ensure the parse runs at most once even with concurrent first callers.
+            lock (_chaptersGate)
+            {
+                lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
+                    () => BuildChapters(untitledFallback),
+                    LazyThreadSafetyMode.ExecutionAndPublication);
+            }
         }
 
+        // Lazy.Value ignores CancellationToken, so the only way to honor ct here is to
+        // check it before accessing Value. The parse itself runs to completion once the
+        // first caller wins the lazy; later callers just observe the cached list. The
+        // caller's Task.Run already gates the entire call on ct, so the practical
+        // cancellation surface is what the user already expects for a chapter load.
         ct.ThrowIfCancellationRequested();
+        return lazy.Value;
+    }
 
+    private List<ChapterItem> BuildChapters(string untitledFallback)
+    {
         // SkipMissingFonts: outline extraction never needs glyph data; avoids font-parse
         // work PdfPig would otherwise do while opening large documents.
         using var pdf = PdfDocument.Open(_bytes, new ParsingOptions { SkipMissingFonts = true });
 
-        ct.ThrowIfCancellationRequested();
-
         var roots = new List<ChapterItem>();
         if (!pdf.TryGetBookmarks(out var bookmarks, allowContainerNode: true))
-        {
-            lock (_chaptersGate) { _chaptersCacheEmpty = true; }
             return roots;
-        }
-
-        ct.ThrowIfCancellationRequested();
 
         int order = 0;
-        MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, ct, untitledFallback);
-
-        ct.ThrowIfCancellationRequested();
-
-        lock (_chaptersGate) { _chaptersCache = roots; }
+        MapBookmarks(bookmarks.Roots, parent: null, depth: 0, output: roots, order: ref order, default, untitledFallback);
         return roots;
     }
 
@@ -209,28 +226,48 @@ public sealed class PdfDoc
         }
     }
 
+    /// <summary>
+    /// Copies the Skia pixel storage into a GC-owned buffer and returns a frozen WPF
+    /// <see cref="BitmapSource"/> built over that managed copy. The native buffer is
+    /// read once, via <see cref="Marshal.Copy(int, byte[], int, int)"/>, so disposing
+    /// the source <see cref="SKBitmap"/> after this returns is safe — WIC will not be
+    /// asked to read freed memory when the bitmap is realized by the virtualizing panel.
+    /// </summary>
     private static BitmapSource ToBitmapSource(SKBitmap bmp)
     {
+        // PDFtoImage hands back whatever format the converter chose; normalize to BGRA so
+        // the byte order always matches WPF's Pbgra32. The temp bitmap owns its own pixels,
+        // so disposing it before Marshal.Copy below is safe.
         SKBitmap src = bmp;
-        if (bmp.ColorType != SKColorType.Bgra8888)
-        {
-            src = new SKBitmap(bmp.Width, bmp.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            bmp.CopyTo(src, SKColorType.Bgra8888);
-        }
-
+        SKBitmap? converted = null;
         try
         {
+            if (bmp.ColorType != SKColorType.Bgra8888)
+            {
+                converted = new SKBitmap(bmp.Width, bmp.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+                bmp.CopyTo(converted, SKColorType.Bgra8888);
+                src = converted;
+            }
+
+            int stride = src.RowBytes;
+            int length = stride * src.Height;
+            var managed = new byte[length];
+            Marshal.Copy(src.GetPixels(), managed, 0, length);
+
+            // The Array overload copies the input buffer into a WIC-owned allocation, so
+            // the managed array is only needed during this call. Stride is derived from
+            // width * bytesPerPixel for tightly-packed pixel formats like Pbgra32, which
+            // always matches the row length this method hands in.
             var bs = BitmapSource.Create(
                 src.Width, src.Height, 96, 96,
                 PixelFormats.Pbgra32, null,
-                src.GetPixels(), src.RowBytes * src.Height, src.RowBytes);
+                managed, stride);
             bs.Freeze();
             return bs;
         }
         finally
         {
-            if (!ReferenceEquals(src, bmp))
-                src.Dispose();
+            converted?.Dispose();
         }
     }
 }
