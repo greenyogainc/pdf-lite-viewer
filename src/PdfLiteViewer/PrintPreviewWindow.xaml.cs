@@ -293,7 +293,20 @@ public partial class PrintPreviewWindow : Window
         CopiesBox.IsEnabled = !printing;
         BwCheck.IsEnabled = !printing;
         DraftCheck.IsEnabled = !printing;
-        Mouse.OverrideCursor = printing ? Cursors.Wait : null;
+        // App-wide wait cursor, owned by this window only while it is open: once it has
+        // closed (OnClosed) the job's completion must not clear a cursor a later preview set.
+        if (IsLoaded) Mouse.OverrideCursor = printing ? Cursors.Wait : null;
         UpdatePrintEnabled();
+    }
+
+    /// <summary>
+    /// Closing mid-print leaves the job running on its own thread (see SetPrintingState), so
+    /// hand the cursor back now instead of keeping the whole app on a wait cursor until the
+    /// spooler has the last page.
+    /// </summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        if (_printing) Mouse.OverrideCursor = null;
+        base.OnClosed(e);
     }
 }
