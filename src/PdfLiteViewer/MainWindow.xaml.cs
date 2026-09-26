@@ -1207,16 +1207,13 @@ public partial class MainWindow : Window
                 var bmp = await doc.RenderPageAsync(item.PageIndex, targetPx, ct);
                 if (ct.IsCancellationRequested) return;
 
-                // PdfDoc.RenderPageAsync ConfigureAwaits(false) all the way through, so the
-                // continuation after the await is on a thread-pool thread. Mutating the
-                // PageItem (an INPC binding source observed by the UI) off the dispatcher
-                // races the WPF binding engine on weakly-ordered CPUs — marshal back here
-                // for the assignment so the property writes are visible to the binding.
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    item.Image = bmp;
-                    item.RenderedPixelWidth = targetPx;
-                }, DispatcherPriority.DataBind);
+                // Already back on the UI thread: the only caller is the render DispatcherTimer
+                // tick, and the ConfigureAwait(false) inside PdfDoc does not change this
+                // method's captured context. Assign directly, right after the token check —
+                // queueing a separate dispatcher hop would let a rotation land between the
+                // check and the write and leave an old-orientation bitmap in place.
+                item.Image = bmp;
+                item.RenderedPixelWidth = targetPx;
             }
             catch (OperationCanceledException)
             {
