@@ -98,14 +98,7 @@ public sealed class PdfDoc
                 using var sk = PDFtoImage.Conversion.ToImage(
                     _bytes,
                     page: pageIndex,
-                    options: new PDFtoImage.RenderOptions(
-                        Width: targetPixelWidth,
-                        WithAspectRatio: true,
-                        WithAnnotations: true,
-                        WithFormFill: true,
-                        Rotation: rotation,
-                        AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
-                        BackgroundColor: SKColors.White));
+                    options: RenderOptionsFor(targetPixelWidth, rotation));
                 return ToBitmapSource(sk);
             }, ct).ConfigureAwait(false);
         }
@@ -113,6 +106,29 @@ public sealed class PdfDoc
         {
             if (acquired) RenderLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Render options whose output is <paramref name="targetPixelWidth"/> wide in the
+    /// <em>rotated</em> orientation. PDFtoImage applies WithAspectRatio against the unrotated
+    /// page and swaps width and height afterwards, so under 90°/270° the requested width
+    /// comes back as the bitmap's height. Asking for that side as the unrotated height makes
+    /// the rotated bitmap exactly the requested width with the display aspect ratio —
+    /// otherwise a rotated landscape page renders undersampled (soft on screen and paper)
+    /// and a rotated tall page oversampled past the print paginator's pixel budget.
+    /// </summary>
+    private static PDFtoImage.RenderOptions RenderOptionsFor(int targetPixelWidth, PDFtoImage.PdfRotation rotation)
+    {
+        bool quarterTurn = rotation is PDFtoImage.PdfRotation.Rotate90 or PDFtoImage.PdfRotation.Rotate270;
+        return new PDFtoImage.RenderOptions(
+            Width: quarterTurn ? null : targetPixelWidth,
+            Height: quarterTurn ? targetPixelWidth : null,
+            WithAspectRatio: true,
+            WithAnnotations: true,
+            WithFormFill: true,
+            Rotation: rotation,
+            AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
+            BackgroundColor: SKColors.White);
     }
 
     /// <summary>
@@ -127,14 +143,7 @@ public sealed class PdfDoc
             using var sk = PDFtoImage.Conversion.ToImage(
                 _bytes,
                 page: pageIndex,
-                options: new PDFtoImage.RenderOptions(
-                    Width: targetPixelWidth,
-                    WithAspectRatio: true,
-                    WithAnnotations: true,
-                    WithFormFill: true,
-                    Rotation: rotation,
-                    AntiAliasing: PDFtoImage.PdfAntiAliasing.All,
-                    BackgroundColor: SKColors.White));
+                options: RenderOptionsFor(targetPixelWidth, rotation));
             return ToBitmapSource(sk);
         }
         finally
