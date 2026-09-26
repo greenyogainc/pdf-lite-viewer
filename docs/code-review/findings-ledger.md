@@ -1,3 +1,24 @@
+# Findings ledger — 2026-09-26 full codebase review
+Repo: greenyogainc/pdf-lite-viewer · Base: 4a279c9 · Review branch: code-review/full-codebase-review-20260926-1016 · Report: full-codebase-review-2026-09-26.md
+
+| ID | Sev | Location | Status |
+|---|---|---|---|
+| A-1 | medium | PrintPreviewWindow.xaml.cs OnClosing | fixed f089ef3 — ARCH-05 restored (owner decision): a sent job survives the preview closing |
+| A-2 | low | MainWindow.xaml.cs UpdateRenderedPagesAsync | fixed 7bc4500 — removed needless DataBind hop that split ct check from write |
+| A-3 | low | PdfPrintPaginator.cs GetPage | fixed f089ef3 + 5427980 — single scale enforces longest side and area |
+| S-1 | low | PdfPrintPaginator.cs GetPage | fixed f089ef3 — tall pages exceeded 6000 px height |
+| B-1 | low | tools/HangProbe/Program.cs | fixed 7254d60 — Guid-named stress PDF/XPS deleted after use |
+| B-2 | nit | tools/HangProbe/Program.cs | refuted as defect; try/finally aligned with its comment in 7254d60 |
+| B-3 | info | tools/MakeChapterFixtures.ps1:14-15 | refuted — guard protects the offset invariant; script is pure ASCII |
+| F-1 | medium | PdfDoc.cs render options | fixed 5427980 — 90/270 renders sized by rotated width; HangProbe check added |
+| F-2 | low | PrintPreviewWindow.xaml.cs wait cursor | fixed 74ed03e — cursor released on close mid-print |
+| F-3 | nit | README 1.0.17 entry, 2026-09-23 report | accepted — shipped history; record reversal at next version bump |
+| G-1 | low | MainWindow.xaml.cs screen render cap | fixed 5b6271b — 24M px area budget alongside width cap |
+
+Prior item F-FINAL-2 (_printCts leak) is moot: the field was removed by A-1.
+
+---
+
 # Findings ledger — full codebase review (final disposition)
 Repo: greenyogainc/pdf-lite-viewer · Branch base: d416e79 · Review branch: code-review/full-codebase-review-20260923-1137 · Final tip: 153defb
 

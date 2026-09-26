@@ -60,7 +60,19 @@ internal static class Program
         }, DispatcherPriority.ApplicationIdle);
 
         app.Run();
+
+        // Guid-named per run, so nothing overwrites it next time: remove it here or every
+        // run leaves another copy (up to ~19 MB at the 20k-page cap) behind in %TEMP%.
+        // PdfDoc reads the whole file into memory, so no handle is held on it by now.
+        TryDelete(pdf);
         return _exitCode;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException ex) { Console.Error.WriteLine($"could not delete {path}: {ex.Message}"); }
+        catch (UnauthorizedAccessException ex) { Console.Error.WriteLine($"could not delete {path}: {ex.Message}"); }
     }
 
     private static async Task<int> RunAsync(int pages, string pdf)
@@ -211,18 +223,19 @@ internal static class Program
         // which is where a machine with an offline network printer stalls hardest.
         var doc = await Task.Run(() => new PdfDoc(pdf));
         PrintPreviewWindow? preview = null;
-        results.Add(await watch.MeasureAsync("open print preview", Ms(300), () =>
-        {
-            preview = new PrintPreviewWindow(doc, 0) { Owner = window };
-            preview.Show();
-        }));
-        // Printer discovery moved off the UI thread, so verify it still lands in the UI —
-        // a silent failure here would leave the Print button dead.
-        // Wrap the show + checks in try/finally so a budget throw on open does not leak a
-        // parented preview window into the rest of the run.
         var printerChecks = new List<Check>();
+        // The show and the checks share one try/finally, so a throw from the preview's
+        // constructor, Show() or a check cannot leave a parented preview window open.
+        // (MeasureAsync itself never throws on a budget overrun; it records a stall.)
         try
         {
+            results.Add(await watch.MeasureAsync("open print preview", Ms(300), () =>
+            {
+                preview = new PrintPreviewWindow(doc, 0) { Owner = window };
+                preview.Show();
+            }));
+            // Printer discovery moved off the UI thread, so verify it still lands in the UI —
+            // a silent failure here would leave the Print button dead.
             printerChecks.AddRange(PrintPreviewChecks(preview!));
             // Measure the close path on its own row. A regression in Window.Close() (a
             // future OnClosing handler doing I/O, for example) would otherwise show up
@@ -232,6 +245,7 @@ internal static class Program
         }
         finally
         {
+            // No-op after the measured close above; closes the window if anything before it threw.
             try { preview?.Close(); } catch { /* the open itself threw — nothing to close */ }
         }
 
@@ -241,8 +255,15 @@ internal static class Program
         // and would either race the print spooler or hand the second probe a stale file.
         var xps = Path.Combine(Path.GetTempPath(), $"hangprobe-print-{Guid.NewGuid():N}.xps");
         var printPages = Enumerable.Range(0, Math.Min(25, pages)).ToList();
-        results.Add(await watch.MeasureAsync($"print {printPages.Count} pages at 300 dpi", Ms(400),
-            () => PrintJob.WriteXpsAsync(doc, printPages, PrintJob.FallbackPaper, xps)));
+        try
+        {
+            results.Add(await watch.MeasureAsync($"print {printPages.Count} pages at 300 dpi", Ms(400),
+                () => PrintJob.WriteXpsAsync(doc, printPages, PrintJob.FallbackPaper, xps)));
+        }
+        finally
+        {
+            TryDelete(xps);     // Guid-named per run: nothing else would ever clean it up
+        }
 
         var checks = await LayoutChecks.RunAsync(window, pages, watch.SettleAsync);
         checks.AddRange(printerChecks);

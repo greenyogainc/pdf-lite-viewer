@@ -13,6 +13,11 @@ public partial class MainWindow : Window
 {
     private const double PageMargin = 16;   // 8 on each side, from the item template
     private const int MaxRenderPixelWidth = 3500;
+    // Width alone does not bound a page bitmap: a receipt-style strip (or a wide banner
+    // turned a quarter) is tens of thousands of pixels tall at a modest width. ~24M px
+    // (~96 MB BGRA) still clears a Legal page at the width cap, and stops a 200x5000 pt
+    // strip from asking PDFium for a 3500x87500 bitmap.
+    private const long MaxRenderPixelArea = 24_000_000;
     private const int RenderBuffer = 2;     // extra pages rendered above/below the viewport
     private const int KeepBuffer = 5;       // pages kept in memory beyond the viewport
 
@@ -1199,6 +1204,13 @@ public partial class MainWindow : Window
             if (ct.IsCancellationRequested) return;
             var item = _items[i];
             int targetPx = Math.Min(MaxRenderPixelWidth, (int)Math.Round(item.DisplayWidth * dpiScale));
+            if (item.DisplayWidth > 0 && item.DisplayHeight > 0)
+            {
+                // Rendered height follows the page's aspect ratio (PdfDoc renders by width).
+                double aspect = item.DisplayHeight / item.DisplayWidth;
+                if ((double)targetPx * targetPx * aspect > MaxRenderPixelArea)
+                    targetPx = (int)Math.Floor(Math.Sqrt(MaxRenderPixelArea / aspect));
+            }
             if (targetPx < 8 || item.RenderedPixelWidth == targetPx)
                 continue;
 
@@ -1207,16 +1219,13 @@ public partial class MainWindow : Window
                 var bmp = await doc.RenderPageAsync(item.PageIndex, targetPx, ct);
                 if (ct.IsCancellationRequested) return;
 
-                // PdfDoc.RenderPageAsync ConfigureAwaits(false) all the way through, so the
-                // continuation after the await is on a thread-pool thread. Mutating the
-                // PageItem (an INPC binding source observed by the UI) off the dispatcher
-                // races the WPF binding engine on weakly-ordered CPUs — marshal back here
-                // for the assignment so the property writes are visible to the binding.
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    item.Image = bmp;
-                    item.RenderedPixelWidth = targetPx;
-                }, DispatcherPriority.DataBind);
+                // Already back on the UI thread: the only caller is the render DispatcherTimer
+                // tick, and the ConfigureAwait(false) inside PdfDoc does not change this
+                // method's captured context. Assign directly, right after the token check —
+                // queueing a separate dispatcher hop would let a rotation land between the
+                // check and the write and leave an old-orientation bitmap in place.
+                item.Image = bmp;
+                item.RenderedPixelWidth = targetPx;
             }
             catch (OperationCanceledException)
             {

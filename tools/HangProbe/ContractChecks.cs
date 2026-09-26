@@ -13,7 +13,8 @@ namespace HangProbe;
 /// show it); a non-PDF startup argument must not become a startup file (this very probe
 /// passes a page count); a facing-mode jump to the other page of the visible spread must
 /// not rebuild the spread; the print preview must commit to a job once Print is clicked;
-/// a print job must keep the rotation it started with; and the print-range parser and
+/// a print job must keep the rotation it started with, and render a quarter-turned page at
+/// print resolution; and the print-range parser and
 /// scale-to-fit placement must hold their documented edge cases.
 /// </summary>
 internal static class ContractChecks
@@ -26,6 +27,7 @@ internal static class ContractChecks
         checks.AddRange(await FacingSpreadAsync(window, settle));
         checks.AddRange(await PrintCommitsAsync(doc));
         checks.Add(await PrintRotationSnapshotAsync(doc));
+        checks.Add(await PrintQuarterTurnResolutionAsync(doc));
         checks.Add(PrintRangeParsing());
         checks.Add(PlacePageFits());
         return checks;
@@ -250,6 +252,40 @@ internal static class ContractChecks
         finally
         {
             doc.Rotation = before;
+        }
+    }
+
+    /// <summary>
+    /// PDFtoImage sizes a render from the *unrotated* page and swaps the sides afterwards, so
+    /// asking a 90° render for a width used to hand back a bitmap whose height was that width:
+    /// a rotated portrait page came out oversampled by its aspect ratio (past the paginator's
+    /// pixel budget on tall pages), a rotated landscape page undersampled. The bitmap drawn
+    /// into the sheet must match the content box at the paginator's 300 DPI.
+    /// </summary>
+    private static async Task<Check> PrintQuarterTurnResolutionAsync(PdfDoc doc)
+    {
+        const string name = "print: a 90° page renders at 300 dpi across its content box";
+        try
+        {
+            var paginator = new PdfPrintPaginator(doc, new[] { 0 }, PrintJob.FallbackPaper, PDFtoImage.PdfRotation.Rotate90);
+            var (boxW, boxH, bmpW, bmpH) = await OnStaThreadAsync(() =>
+            {
+                var page = paginator.GetPage(0);
+                var image = VisualTreeHelper.GetDrawing(page.Visual)?.Children.OfType<ImageDrawing>()
+                    .Select(d => d.ImageSource as BitmapSource).FirstOrDefault(b => b is not null);
+                return (page.ContentBox.Width, page.ContentBox.Height, image?.PixelWidth ?? 0, image?.PixelHeight ?? 0);
+            });
+
+            double expectedW = boxW / 96.0 * 300.0;
+            double expectedH = boxH / 96.0 * 300.0;
+            // Floor in the paginator and truncation in PDFium: allow a couple of pixels.
+            bool ok = bmpW > 0 && Math.Abs(bmpW - expectedW) <= 2 && Math.Abs(bmpH - expectedH) <= 2;
+            return new Check(name, ok,
+                $"content box {boxW:F0}x{boxH:F0} DIP wants ~{expectedW:F0}x{expectedH:F0} px, bitmap {bmpW}x{bmpH}");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
