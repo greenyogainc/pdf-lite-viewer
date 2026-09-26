@@ -15,7 +15,7 @@ public sealed class PdfPrintPaginator : DocumentPaginator
     // the total pixel budget keeps extreme aspect-ratio pages from blowing up the
     // document writer with a single page they cannot encode.
     private const int MaxPixelArea = 36_000_000;        // ~6000 x 6000 budget
-    private const int MaxPixelDimension = 6000;         // cap that mirrors the width ceiling
+    private const int MaxPixelDimension = 6000;         // longest side, width or height
 
     private readonly PdfDoc _doc;
     private readonly IReadOnlyList<int> _pages;   // 0-based PDF page indices to print
@@ -23,10 +23,10 @@ public sealed class PdfPrintPaginator : DocumentPaginator
     private readonly PDFtoImage.PdfRotation _rotation;
 
     /// <summary>
-    /// Set by <see cref="PrintJob"/> before <c>writer.Write</c> returns control to the
-    /// spooler. The paginator checks this between renders so closing the print window
-    /// (or the app) can interrupt a long job. Default is <see cref="CancellationToken.None"/>
-    /// for callers that don't care.
+    /// Optional cooperative cancellation, checked between pages. <see cref="PrintJob"/> passes
+    /// whatever token its caller supplied; the print preview supplies none, because a job
+    /// that has been sent must survive the preview window closing. Default is
+    /// <see cref="CancellationToken.None"/>.
     /// </summary>
     internal CancellationToken CancellationToken { get; set; }
 
@@ -67,18 +67,18 @@ public sealed class PdfPrintPaginator : DocumentPaginator
         var (ptW, ptH) = _doc.GetDisplaySize(pdfIndex, _rotation);
         var rect = PlacePage(ptW, ptH, _pageSize);
 
-        // Cap the rectangle from the page's *display* dimensions (not the aspect ratio the
-        // library gives back), so a long foldout still fits inside WIC's max texture size.
-        // The existing width ceiling drives the longest side; the matching budget keeps
-        // the other side from running away on extreme aspect ratios.
-        int pixelWidth = Math.Min(MaxPixelDimension, (int)Math.Round(rect.Width / 96.0 * PrintDpi));
-        int pixelHeight = (int)Math.Round(rect.Height / 96.0 * PrintDpi);
-        if (pixelWidth * (long)pixelHeight > MaxPixelArea)
-        {
-            double scale = Math.Sqrt((double)MaxPixelArea / (pixelWidth * (long)pixelHeight));
-            pixelWidth = Math.Max(1, (int)Math.Round(pixelWidth * scale));
-            pixelHeight = Math.Max(1, (int)Math.Round(pixelHeight * scale));
-        }
+        // Size the bitmap from the page's *display* dimensions (not the aspect ratio the
+        // library gives back). One scale factor enforces both limits: the longest side —
+        // width or height — stays within MaxPixelDimension, and the area within
+        // MaxPixelArea. The render is driven by width with the aspect ratio preserved, so
+        // only the width is passed on; Floor keeps the derived height from rounding past
+        // the cap.
+        double widthPx = rect.Width / 96.0 * PrintDpi;
+        double heightPx = rect.Height / 96.0 * PrintDpi;
+        double capScale = Math.Min(1.0, Math.Min(
+            MaxPixelDimension / Math.Max(widthPx, heightPx),
+            Math.Sqrt(MaxPixelArea / (widthPx * heightPx))));
+        int pixelWidth = Math.Max(1, (int)Math.Floor(widthPx * capScale));
         var bmp = _doc.RenderPageSync(pdfIndex, pixelWidth, _rotation);
 
         var visual = new DrawingVisual();
