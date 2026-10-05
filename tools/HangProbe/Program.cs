@@ -2,6 +2,8 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using PdfLiteViewer;
 
@@ -144,6 +146,10 @@ internal static class Program
         // GoToPage the reader back to the chapter's first page). The check is
         // self-validating: it counts the echoes the guard absorbed, so a run that never
         // exercised the guarded path fails instead of passing vacuously.
+        // The jumps above leave the viewport on the last pages, so "chapter + 5" falls
+        // off a short outline. Park where the tree still has neighbours below.
+        window.GoToPage(Math.Clamp(pages / 4, 0, Math.Max(0, pages - 6)));
+        await watch.SettleAsync();
         window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 137);
         await watch.SettleAsync();
         double offsetBefore = window.Scroller.VerticalOffset;
@@ -162,16 +168,33 @@ internal static class Program
         if (AboutChecks.FindChildren<ScrollViewer>(window.ChapterTree).FirstOrDefault() is { } treeScroller)
         {
             int echoBefore = window.ChapterEchoCount;
-            for (int round = 0; round < 3; round++)
+            // The default cache is a full viewport. Forty chapters fit in that cache, so
+            // nothing is recycled and the echo guard never runs. Zero the cache for this
+            // scroll only, then put it back.
+            var cacheLength = VirtualizingPanel.GetCacheLength(window.ChapterTree);
+            var cacheUnit = VirtualizingPanel.GetCacheLengthUnit(window.ChapterTree);
+            VirtualizingPanel.SetCacheLengthUnit(window.ChapterTree, VirtualizationCacheLengthUnit.Item);
+            VirtualizingPanel.SetCacheLength(window.ChapterTree, new VirtualizationCacheLength(0));
+            try
             {
-                // Park far away, then bring the active chapter's container back into
-                // view: that recycle/re-realize cycle is what raises the echo.
-                treeScroller.ScrollToHome();
-                await watch.SettleAsync();
-                treeScroller.ScrollToEnd();
-                await watch.SettleAsync();
-                treeScroller.ScrollToVerticalOffset(Math.Max(0, selectedIndex - 5));   // item-scrolling: offset == index
-                await watch.SettleAsync();
+                window.ChapterTree.UpdateLayout();
+                for (int round = 0; round < 3; round++)
+                {
+                    // Park far away, then bring the active chapter's container back into
+                    // view: that recycle/re-realize cycle is what raises the echo.
+                    treeScroller.ScrollToHome();
+                    await watch.SettleAsync();
+                    treeScroller.ScrollToEnd();
+                    await watch.SettleAsync();
+                    treeScroller.ScrollToVerticalOffset(Math.Max(0, selectedIndex - 5));   // item-scrolling: offset == index
+                    await watch.SettleAsync();
+                    window.ChapterTree.UpdateLayout();
+                }
+            }
+            finally
+            {
+                VirtualizingPanel.SetCacheLengthUnit(window.ChapterTree, cacheUnit);
+                VirtualizingPanel.SetCacheLength(window.ChapterTree, cacheLength);
             }
             int echoes = window.ChapterEchoCount - echoBefore;
             double offsetAfter = window.Scroller.VerticalOffset;
@@ -237,6 +260,7 @@ internal static class Program
             // Printer discovery moved off the UI thread, so verify it still lands in the UI —
             // a silent failure here would leave the Print button dead.
             printerChecks.AddRange(PrintPreviewChecks(preview!));
+            printerChecks.AddRange(await PrintRangeUiAsync(preview!, doc.PageCount, watch.SettleAsync));
             // Measure the close path on its own row. A regression in Window.Close() (a
             // future OnClosing handler doing I/O, for example) would otherwise show up
             // only as a leaked window — not a per-scenario hang against this budget.
@@ -271,6 +295,7 @@ internal static class Program
         checks.AddRange(await PreviewRaceChecks.RunAsync(doc));
         checks.AddRange(await ContractChecks.RunAsync(window, doc, watch.SettleAsync));
         checks.AddRange(await AboutChecks.RunAsync());
+        checks.AddRange(await InputChecks.RunAsync(window, pdf, watch.SettleAsync));
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
@@ -311,6 +336,67 @@ internal static class Program
         };
     }
 
+    /// <summary>
+    /// Range controls on the preview that is already on screen. ParseRange itself is
+    /// table-tested in ContractChecks; this covers the combo and text box wiring.
+    /// </summary>
+    private static async Task<List<Check>> PrintRangeUiAsync(PrintPreviewWindow preview, int pageCount, Func<Task> settle)
+    {
+        var checks = new List<Check>();
+        checks.Add(new Check("print range: all pages",
+            preview.PageLabel.Text == $"1 / {pageCount}",
+            $"label '{preview.PageLabel.Text}'"));
+
+        preview.RangeMode.SelectedIndex = 1;
+        await settle();
+        checks.Add(new Check("print range: current page",
+            preview.PageLabel.Text == "1 / 1",
+            $"label '{preview.PageLabel.Text}'"));
+
+        preview.RangeMode.SelectedIndex = 2;
+        preview.RangeBox.Text = "2-3";
+        await settle();
+        bool printerKnown = preview.PrinterBox.SelectedItem is not null;
+        bool custom = preview.PageLabel.Text == "1 / 2"
+                      && preview.RangeBox.Visibility == Visibility.Visible
+                      && (!printerKnown || preview.PrintBtn.IsEnabled);
+        checks.Add(new Check("print range: 2-3 selects those pages", custom,
+            $"label '{preview.PageLabel.Text}', print enabled={preview.PrintBtn.IsEnabled}"));
+
+        preview.BwCheck.IsChecked = true;
+        await settle();
+        await settle();
+        bool gray = preview.PageImage.Source is System.Windows.Media.Imaging.FormatConvertedBitmap converted
+                    && converted.Format == System.Windows.Media.PixelFormats.Gray8;
+        checks.Add(new Check("print preview: grayscale renders gray", gray,
+            preview.PageImage.Source is null ? "no bitmap" : preview.PageImage.Source.GetType().Name));
+
+        var next = AboutChecks.FindChildren<System.Windows.Controls.Button>(preview)
+            .FirstOrDefault(b => System.Windows.Automation.AutomationProperties.GetName(b) == Strings.Get("NextPageTooltip"));
+        var prev = AboutChecks.FindChildren<System.Windows.Controls.Button>(preview)
+            .FirstOrDefault(b => System.Windows.Automation.AutomationProperties.GetName(b) == Strings.Get("PrevPageTooltip"));
+        next?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        await settle();
+        bool stepped = preview.PageLabel.Text == "2 / 2";
+        prev?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        await settle();
+        bool right = RaiseKey(preview, Key.Right, Keyboard.KeyDownEvent);
+        bool down = RaiseKey(preview, Key.PageDown, Keyboard.KeyDownEvent);
+        bool left = RaiseKey(preview, Key.Left, Keyboard.KeyDownEvent);
+        bool up = RaiseKey(preview, Key.PageUp, Keyboard.KeyDownEvent);
+        checks.Add(new Check("print preview: buttons and keys step the page",
+            next is not null && prev is not null && stepped && right && down && left && up,
+            $"after next label moved={stepped}, keys handled right={right} down={down} left={left} up={up}, now '{preview.PageLabel.Text}'"));
+        preview.BwCheck.IsChecked = false;
+
+        preview.RangeBox.Text = "nope";
+        await settle();
+        checks.Add(new Check("print range: invalid range disables print",
+            !preview.PrintBtn.IsEnabled && preview.EmptyRangeHint.Visibility == Visibility.Visible,
+            $"print enabled={preview.PrintBtn.IsEnabled}, empty hint={preview.EmptyRangeHint.Visibility}"));
+        return checks;
+    }
+
     /// <summary>PNGs of each view mode, for eyeballing what the numeric checks cannot describe.</summary>
     private static async Task CaptureModesAsync(MainWindow window, int pages, Func<Task> settle)
     {
@@ -337,6 +423,20 @@ internal static class Program
         Console.WriteLine($"screenshot: {Shots.Capture(window, "single-zoomed")}");
         Console.WriteLine($"           zoomed panning: scrollable {window.Scroller.ScrollableWidth:F0}x" +
                           $"{window.Scroller.ScrollableHeight:F0}px");
+    }
+
+    private static bool RaiseKey(IInputElement source, Key key, RoutedEvent routed)
+    {
+        if (source is not Visual visual)
+            throw new InvalidOperationException("key source is not a visual");
+        var presentation = PresentationSource.FromVisual(visual)
+            ?? throw new InvalidOperationException("key source has no presentation source");
+        var args = new KeyEventArgs(Keyboard.PrimaryDevice, presentation, Environment.TickCount, key)
+        {
+            RoutedEvent = routed,
+        };
+        source.RaiseEvent(args);
+        return args.Handled;
     }
 
     private static TimeSpan Ms(int ms) => TimeSpan.FromMilliseconds(ms);
