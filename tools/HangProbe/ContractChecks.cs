@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -28,6 +29,12 @@ internal static class ContractChecks
         checks.Add(await PrintRotationSnapshotAsync(doc));
         checks.Add(PrintRangeParsing());
         checks.Add(PlacePageFits());
+        checks.Add(await CancelledPrintWritesNothingAsync(doc));
+        checks.Add(await PaginatorHonorsCancelledTokenAsync(doc));
+        checks.Add(await PixelCapAsync());
+        checks.Add(await MissingPrinterPaperAsync());
+        checks.Add(StartupLanguage());
+        checks.Add(ErrorLogAppends());
         return checks;
     }
 
@@ -300,6 +307,200 @@ internal static class ContractChecks
         }
         return new Check("print range parser", wrong.Count == 0,
             wrong.Count == 0 ? $"{cases.Length} cases verified" : string.Join("; ", wrong));
+    }
+
+    /// <summary>
+    /// An already-cancelled job must unwind on the print thread before it creates an XPS
+    /// package. A file left behind would be a job that ignored the token.
+    /// </summary>
+    private static async Task<Check> CancelledPrintWritesNothingAsync(PdfDoc doc)
+    {
+        const string name = "print: cancelled job writes no XPS";
+        var path = Path.Combine(Path.GetTempPath(), $"hangprobe-cancel-{Guid.NewGuid():N}.xps");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        try
+        {
+            await PrintJob.WriteXpsAsync(doc, new[] { 0 }, PrintJob.FallbackPaper, path, cts.Token);
+            return new Check(name, false, "WriteXpsAsync completed instead of cancelling");
+        }
+        catch (OperationCanceledException)
+        {
+            bool leftNothing = !File.Exists(path);
+            return new Check(name, leftNothing,
+                leftNothing ? "cancelled before the package was created" : $"cancelled but left {path}");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { }
+        }
+    }
+
+    /// <summary>The paginator's own token check, independent of the XPS writer.</summary>
+    private static async Task<Check> PaginatorHonorsCancelledTokenAsync(PdfDoc doc)
+    {
+        const string name = "print: paginator stops when the job is cancelled";
+        try
+        {
+            var paginator = new PdfPrintPaginator(doc, new[] { 0 }, PrintJob.FallbackPaper, doc.Rotation)
+            {
+                CancellationToken = new CancellationToken(canceled: true),
+            };
+            paginator.PageSize = paginator.PageSize;   // the empty setter is part of DocumentPaginator
+            await OnStaThreadAsync(() => paginator.GetPage(0));
+            return new Check(name, false, "GetPage returned a page for a cancelled job");
+        }
+        catch (OperationCanceledException)
+        {
+            return new Check(name, true, "GetPage threw OperationCanceledException");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// A page large enough that 300 DPI would exceed the paginator's pixel budget must come
+    /// back scaled down. Width is pre-capped at 6000 and height is not, so the guarantee is
+    /// the area (36e6), not both sides being ≤ 6000.
+    /// </summary>
+    private static async Task<Check> PixelCapAsync()
+    {
+        const string name = "print: extreme page stays inside the pixel budget";
+        const int maxArea = 36_000_000;
+        var path = Path.Combine(Path.GetTempPath(), $"hangprobe-huge-{Guid.NewGuid():N}.pdf");
+        try
+        {
+            // 1440×1575 pt → 1920×2100 DIP. On a paper larger than that, placement does not
+            // shrink the page, and 300 DPI asks for 6000×6562 px (area ~39e6) before the cap.
+            WriteSinglePagePdf(path, 1440, 1575);
+            var doc = new PdfDoc(path);
+            var paginator = new PdfPrintPaginator(doc, new[] { 0 }, new Size(4000, 4000), PDFtoImage.PdfRotation.Rotate0);
+            var (bmpW, bmpH) = await OnStaThreadAsync(() =>
+            {
+                var page = paginator.GetPage(0);
+                var image = VisualTreeHelper.GetDrawing(page.Visual)?.Children.OfType<ImageDrawing>()
+                    .Select(d => d.ImageSource as BitmapSource).FirstOrDefault(b => b is not null);
+                return (image?.PixelWidth ?? 0, image?.PixelHeight ?? 0);
+            });
+            long area = (long)bmpW * bmpH;
+            // Uncapped height is ~6562. Under 6400 means the budget scale ran; over 5000 means
+            // we did not accidentally render a thumbnail.
+            bool ok = bmpW > 0 && bmpH > 5000 && bmpH < 6400 && area <= maxArea + maxArea / 100;
+            return new Check(name, ok, $"bitmap {bmpW}x{bmpH}, area {area}");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { }
+        }
+    }
+
+    private static async Task<Check> MissingPrinterPaperAsync()
+    {
+        const string name = "print: missing queue falls back to letter";
+        try
+        {
+            var size = await Task.Run(() => PrintJob.PaperFor("no-such-printer-" + Guid.NewGuid().ToString("N")));
+            bool ok = size.Width == PrintJob.FallbackPaper.Width && size.Height == PrintJob.FallbackPaper.Height;
+            return new Check(name, ok, $"{size.Width:F0}x{size.Height:F0}");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private static Check StartupLanguage()
+    {
+        const string name = "startup: --lang= applies, unknown cultures are ignored";
+        var previousUi = CultureInfo.CurrentUICulture;
+        var previousDefault = CultureInfo.DefaultThreadCurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+            CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+            // "not-a-culture" is accepted (culture name "not"). A name with no hyphen
+            // is what actually throws CultureNotFoundException, which is the branch
+            // OnStartup swallows.
+            App.ApplyStartupArguments(new[] { "--lang=zzzz" });
+            bool ignored = CultureInfo.CurrentUICulture.Name == "en-US"
+                           && CultureInfo.DefaultThreadCurrentUICulture?.Name == "en-US";
+
+            var file = App.ApplyStartupArguments(new[] { "--lang=de", @"C:\gone\moved-away.pdf" });
+            bool applied = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de"
+                           && CultureInfo.DefaultThreadCurrentUICulture?.TwoLetterISOLanguageName == "de"
+                           && file == @"C:\gone\moved-away.pdf";
+            return new Check(name, ignored && applied,
+                $"unknown ignored={ignored}, de applied={applied}, file='{file}'");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previousUi;
+            CultureInfo.DefaultThreadCurrentUICulture = previousDefault;
+        }
+    }
+
+    private static Check ErrorLogAppends()
+    {
+        const string name = "startup: errors append to the log";
+        var path = Path.Combine(Path.GetTempPath(), "PdfLiteViewer.log");
+        var first = "probe-log-" + Guid.NewGuid().ToString("N");
+        var second = "probe-log-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            App.LogError(new InvalidOperationException(first));
+            App.LogError(new InvalidOperationException(second));
+            var text = File.ReadAllText(path);
+            int atFirst = text.LastIndexOf(first, StringComparison.Ordinal);
+            int atSecond = text.LastIndexOf(second, StringComparison.Ordinal);
+            bool ok = atFirst >= 0 && atSecond > atFirst;
+            return new Check(name, ok,
+                ok ? "two entries appended in order" : $"markers at {atFirst}, {atSecond}");
+        }
+        catch (Exception ex)
+        {
+            return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>One-page PDF whose MediaBox is exactly the given size in points.</summary>
+    private static void WriteSinglePagePdf(string path, int widthPt, int heightPt)
+    {
+        var stream = $"BT /F1 24 Tf 72 72 Td (Big) Tj ET\n";
+        var body = new StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        void Obj(string content)
+        {
+            offsets.Add(body.Length);
+            body.Append(offsets.Count).Append(" 0 obj\n").Append(content).Append("\nendobj\n");
+        }
+        Obj("<< /Type /Catalog /Pages 2 0 R >>");
+        Obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        Obj($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {widthPt} {heightPt}] /Contents 4 0 R " +
+            "/Resources << /Font << /F1 5 0 R >> >> >>");
+        Obj($"<< /Length {Encoding.ASCII.GetByteCount(stream)} >>\nstream\n{stream}endstream");
+        Obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+        int xref = body.Length;
+        body.Append("xref\n0 ").Append(offsets.Count + 1).Append('\n');
+        body.Append("0000000000 65535 f \n");
+        foreach (int off in offsets) body.Append(off.ToString("D10")).Append(" 00000 n \n");
+        body.Append("trailer\n<< /Size ").Append(offsets.Count + 1).Append(" /Root 1 0 R >>\nstartxref\n")
+            .Append(xref).Append("\n%%EOF\n");
+        File.WriteAllBytes(path, Encoding.ASCII.GetBytes(body.ToString()));
     }
 
     private static Check PlacePageFits()

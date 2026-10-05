@@ -13,26 +13,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        foreach (var arg in e.Args)
-        {
-            // Hidden override for support/screenshots — forces UI culture regardless of OS language.
-            if (arg.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var culture = new CultureInfo(arg["--lang=".Length..]);
-                    // Set both the startup thread and the defaults used by thread-pool
-                    // workers (chapter extraction, etc.) so --lang= applies app-wide.
-                    Thread.CurrentThread.CurrentUICulture = culture;
-                    CultureInfo.DefaultThreadCurrentUICulture = culture;
-                }
-                catch (CultureNotFoundException) { }
-            }
-            else if (StartupFile is null && IsDocumentArgument(arg))
-            {
-                StartupFile = arg;
-            }
-        }
+        StartupFile = ApplyStartupArguments(e.Args);
 
         DispatcherUnhandledException += (_, args) =>
         {
@@ -76,6 +57,38 @@ public partial class App : Application
     internal static bool IsDocumentArgument(string arg) =>
         !arg.StartsWith('-') &&
         (File.Exists(arg) || arg.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Applies <c>--lang=</c> and returns the document argument, if any.
+    /// Static so tools/HangProbe can exercise it without constructing a second
+    /// <see cref="Application"/> — WPF allows only one per process, and this one
+    /// has already started by the time the probe runs.
+    /// </summary>
+    internal static string? ApplyStartupArguments(IEnumerable<string> args)
+    {
+        string? startupFile = null;
+        foreach (var arg in args)
+        {
+            // Hidden override for support/screenshots — forces UI culture regardless of OS language.
+            if (arg.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var culture = new CultureInfo(arg["--lang=".Length..]);
+                    // Set both the startup thread and the defaults used by thread-pool
+                    // workers (chapter extraction, etc.) so --lang= applies app-wide.
+                    Thread.CurrentThread.CurrentUICulture = culture;
+                    CultureInfo.DefaultThreadCurrentUICulture = culture;
+                }
+                catch (CultureNotFoundException) { }
+            }
+            else if (startupFile is null && IsDocumentArgument(arg))
+            {
+                startupFile = arg;
+            }
+        }
+        return startupFile;
+    }
 
     private static string LogPath =>
         Path.Combine(Path.GetTempPath(), "PdfLiteViewer.log");

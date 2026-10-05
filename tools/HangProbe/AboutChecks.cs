@@ -140,6 +140,13 @@ internal static class AboutChecks
                 about.LicenseText.Visibility == Visibility.Visible && about.LicenseText.Text.Contains("MIT License"),
                 $"{about.LicenseText.Text.Length} chars shown"));
 
+            about.LicenseToggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await PumpAsync();
+            checks.Add(new Check("about: license hides again",
+                about.LicenseText.Visibility == Visibility.Collapsed
+                && about.LicenseToggle.Content as string == Strings.Get("AboutViewLicense"),
+                $"visibility={about.LicenseText.Visibility}, toggle='{about.LicenseToggle.Content}'"));
+
             // Consent-before-load: opening the support pane must not create any web view.
             about.OpenSupportPane();
             await PumpAsync();
@@ -148,6 +155,18 @@ internal static class AboutChecks
                 about.WebViewHost.Visibility == Visibility.Collapsed &&
                 about.WebViewHost.Child is null,
                 "consent panel showing, no WebView2 instantiated"));
+
+            about.BackBtn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await PumpAsync();
+            checks.Add(new Check("about: back returns to the about pane",
+                about.SupportPanel.Visibility == Visibility.Collapsed
+                && about.AboutPanel.Visibility == Visibility.Visible
+                && about.ContactSupportBtn.IsFocused,
+                $"support={about.SupportPanel.Visibility}, about={about.AboutPanel.Visibility}, " +
+                $"contact focused={about.ContactSupportBtn.IsFocused}"));
+
+            about.OpenSupportPane();
+            await PumpAsync();
 
             // Failure fallback via the seam: retry + open-in-browser must be offered.
             AboutWindow.SimulateWebViewInitFailure = true;
