@@ -110,10 +110,12 @@ public partial class AboutWindow : Window
         if (AppSupportClient.Validate(request) is { } invalid)
         {
             SetSupportStatus(Strings.Get(invalid == AppSupportStatus.InvalidEmail ? "SupportInvalidEmail" : "SupportRequired"));
-            if (string.IsNullOrWhiteSpace(SupportNameInput.Text)) SupportNameInput.Focus();
-            else if (invalid == AppSupportStatus.InvalidEmail || string.IsNullOrWhiteSpace(SupportEmailInput.Text)) SupportEmailInput.Focus();
-            else if (string.IsNullOrWhiteSpace(SupportSubjectInput.Text)) SupportSubjectInput.Focus();
-            else SupportMessageInput.Focus();
+            var invalidField = SupportMessageInput;
+            if (string.IsNullOrWhiteSpace(SupportNameInput.Text)) invalidField = SupportNameInput;
+            else if (invalid == AppSupportStatus.InvalidEmail || string.IsNullOrWhiteSpace(SupportEmailInput.Text)) invalidField = SupportEmailInput;
+            else if (string.IsNullOrWhiteSpace(SupportSubjectInput.Text)) invalidField = SupportSubjectInput;
+            invalidField.Focus();
+            invalidField.BringIntoView();
             return;
         }
         _sending = true;

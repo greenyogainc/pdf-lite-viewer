@@ -121,7 +121,20 @@ internal static class AboutChecks
             checks.Add(new Check("support: native form opens offline", posts == 0 &&
                 about.SupportForm.Visibility == Visibility.Visible && about.SupportNameInput.IsFocused,
                 "opening support performs no HTTP request"));
+            checks.Add(new Check("support: Send visible at default window size",
+                IsInSupportViewport(about, about.SupportSendBtn),
+                $"window {about.ActualWidth}x{about.ActualHeight}, viewport {about.SupportPanel.ViewportHeight:F1}"));
+            var defaultHeight = about.Height;
+            about.Height = 620;
+            about.SupportPanel.ScrollToBottom();
+            await PumpAsync();
             await about.SendSupportAsync();
+            await PumpAsync();
+            checks.Add(new Check("support: invalid field visible after bottom submission",
+                about.SupportNameInput.IsKeyboardFocused && IsInSupportViewport(about, about.SupportNameInput),
+                $"focused={about.SupportNameInput.IsKeyboardFocused}, offset={about.SupportPanel.VerticalOffset:F1}"));
+            about.Height = defaultHeight;
+            await PumpAsync();
             checks.Add(new Check("support: required fields prevent submission", posts == 0 &&
                 about.SupportStatusText.Text == Strings.Get("SupportRequired"), "invalid form stays local"));
             about.SupportNameInput.Text = "Ada";
@@ -201,6 +214,13 @@ internal static class AboutChecks
     private sealed class SupportReply(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => reply(request, token);
+    }
+
+    private static bool IsInSupportViewport(AboutWindow window, FrameworkElement element)
+    {
+        var bounds = element.TransformToAncestor(window.SupportPanel)
+            .TransformBounds(new Rect(element.RenderSize));
+        return new Rect(0, 0, window.SupportPanel.ViewportWidth, window.SupportPanel.ViewportHeight).Contains(bounds);
     }
 
     private static async Task PumpAsync()

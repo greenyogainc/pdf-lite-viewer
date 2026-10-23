@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:PdfLiteViewer"
         Title="{local:Loc AboutWindowTitle}"
-        Width="760" Height="620" MinWidth="560" MinHeight="480"
+        Width="760" Height="850" MinWidth="560" MinHeight="480"
         Background="#FF404040"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
