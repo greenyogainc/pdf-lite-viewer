@@ -6,5 +6,6 @@
     <Project Path="tools/ChapterSmoke/ChapterSmoke.csproj" />
     <Project Path="tools/HangProbe/HangProbe.csproj" />
     <Project Path="tools/StoreShots/StoreShots.csproj" />
+    <Project Path="tools/SupportTransportChecks/SupportTransportChecks.csproj" />
   </Folder>
 </Solution>

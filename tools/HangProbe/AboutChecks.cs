@@ -1,4 +1,8 @@
 using System.Globalization;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using GreenYoga.Support;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
@@ -10,9 +14,7 @@ using PdfLiteViewer;
 namespace HangProbe;
 
 /// <summary>
-/// Regression checks for the About/support surface: the navigation policy that fences
-/// the embedded support view, the About window's accessibility contract, RTL behaviour,
-/// and the WebView2 failure fallback (via the init-failure seam — no network involved).
+/// Regression checks for native support, accessibility, RTL, validation and delivery states.
 /// </summary>
 internal static class AboutChecks
 {
@@ -34,54 +36,14 @@ internal static class AboutChecks
         return checks;
     }
 
-    // ---------- SupportNavigationPolicy (pure) ----------
-
     private static IEnumerable<Check> PolicyChecks()
     {
-        var cases = new (string? Uri, NavigationDecision Expected)[]
-        {
-            ("https://greenyogainc.com/contact/", NavigationDecision.AllowInView),
-            ("https://greenyogainc.com/", NavigationDecision.AllowInView),
-            ("https://WWW.GREENYOGAINC.COM/anything?x=1", NavigationDecision.AllowInView),
-            ("https://api.greenyogainc.com/contact", NavigationDecision.AllowInView),
-            ("https://example.com/", NavigationDecision.OpenInBrowser),
-            ("http://greenyogainc.com/", NavigationDecision.OpenInBrowser),          // http never embeds
-            ("https://evilgreenyogainc.com/", NavigationDecision.OpenInBrowser),     // suffix spoof
-            ("https://greenyogainc.com.evil.example/", NavigationDecision.OpenInBrowser),
-            ("https://sub.greenyogainc.com/", NavigationDecision.OpenInBrowser),     // unknown subdomain
-            ("https://greenyogainc.com:8443/", NavigationDecision.OpenInBrowser),    // non-default port
-            ("file:///C:/Windows/system32/", NavigationDecision.Cancel),
-            ("javascript:alert(1)", NavigationDecision.Cancel),
-            ("ms-appx-web://anything", NavigationDecision.Cancel),
-            ("data:text/html,<h1>x</h1>", NavigationDecision.Cancel),
-            ("about:blank", NavigationDecision.Cancel),
-            ("not a uri at all", NavigationDecision.Cancel),
-            ("", NavigationDecision.Cancel),
-            (null, NavigationDecision.Cancel),
-        };
-
-        int wrong = 0;
-        var details = new List<string>();
-        foreach (var (uri, expected) in cases)
-        {
-            var got = SupportNavigationPolicy.Decide(uri);
-            if (got != expected)
-            {
-                wrong++;
-                details.Add($"'{uri}' -> {got}, expected {expected}");
-            }
-        }
-        yield return new Check("support navigation policy", wrong == 0,
-            wrong == 0 ? $"{cases.Length} cases verified" : string.Join("; ", details));
-
-        bool shellGate =
-            SupportNavigationPolicy.IsSafeExternalUrl("https://example.com/") &&
-            SupportNavigationPolicy.IsSafeExternalUrl("http://example.com/") &&
+        yield return new Check("external-shell gate takes only web URLs",
+            SupportNavigationPolicy.IsSafeExternalUrl("https://example.com") &&
+            SupportNavigationPolicy.IsSafeExternalUrl("http://example.com") &&
+            !SupportNavigationPolicy.IsSafeExternalUrl(null) &&
             !SupportNavigationPolicy.IsSafeExternalUrl("file:///C:/x") &&
-            !SupportNavigationPolicy.IsSafeExternalUrl("javascript:alert(1)") &&
-            !SupportNavigationPolicy.IsSafeExternalUrl(null);
-        yield return new Check("external-shell gate takes only web URLs", shellGate,
-            "IsSafeExternalUrl accepts http/https and nothing else");
+            !SupportNavigationPolicy.IsSafeExternalUrl("javascript:alert(1)"), "About links remain gated");
     }
 
     // ---------- AboutWindow (UI) ----------
@@ -89,7 +51,14 @@ internal static class AboutChecks
     private static async Task<List<Check>> WindowChecksAsync()
     {
         var checks = new List<Check>();
-        var about = new AboutWindow();
+        int posts = 0;
+        var pending = new TaskCompletionSource<HttpResponseMessage>();
+        var handler = new SupportReply(async (request, ct) => {
+            posts++;
+            if (posts == 1) return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") };
+            return await pending.Task.WaitAsync(ct);
+        });
+        var about = new AboutWindow(new AppSupportClient(new HttpClient(handler)));
         try
         {
             about.Show();
@@ -147,55 +116,62 @@ internal static class AboutChecks
                 && about.LicenseToggle.Content as string == Strings.Get("AboutViewLicense"),
                 $"visibility={about.LicenseText.Visibility}, toggle='{about.LicenseToggle.Content}'"));
 
-            // Consent-before-load: opening the support pane must not create any web view.
             about.OpenSupportPane();
             await PumpAsync();
-            checks.Add(new Check("support: nothing loads before consent",
-                about.SupportConsentPanel.Visibility == Visibility.Visible &&
-                about.WebViewHost.Visibility == Visibility.Collapsed &&
-                about.WebViewHost.Child is null,
-                "consent panel showing, no WebView2 instantiated"));
-
+            checks.Add(new Check("support: native form opens offline", posts == 0 &&
+                about.SupportForm.Visibility == Visibility.Visible && about.SupportNameInput.IsFocused,
+                "opening support performs no HTTP request"));
+            await about.SendSupportAsync();
+            checks.Add(new Check("support: required fields prevent submission", posts == 0 &&
+                about.SupportStatusText.Text == Strings.Get("SupportRequired"), "invalid form stays local"));
+            about.SupportNameInput.Text = "Ada";
+            about.SupportEmailInput.Text = "ada@example.com";
+            about.SupportSubjectInput.Text = "Question";
+            about.SupportMessageInput.Text = "Please help.";
             about.BackBtn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            await PumpAsync();
-            checks.Add(new Check("about: back returns to the about pane",
-                about.SupportPanel.Visibility == Visibility.Collapsed
-                && about.AboutPanel.Visibility == Visibility.Visible
-                && about.ContactSupportBtn.IsFocused,
-                $"support={about.SupportPanel.Visibility}, about={about.AboutPanel.Visibility}, " +
-                $"contact focused={about.ContactSupportBtn.IsFocused}"));
-
             about.OpenSupportPane();
-            await PumpAsync();
+            checks.Add(new Check("support: back preserves draft", about.SupportMessageInput.Text == "Please help.", "draft retained"));
+            var id = about.CurrentSupportRequest().RequestId;
+            await about.SendSupportAsync();
+            checks.Add(new Check("support: failure retains fields and request id",
+                !about.SupportSubmitted && about.SupportMessageInput.Text == "Please help." &&
+                about.CurrentSupportRequest().RequestId == id && about.SupportSendBtn.IsEnabled,
+                "manual retry uses the original id"));
+            var sending = about.SendSupportAsync();
+            await about.SendSupportAsync();
+            checks.Add(new Check("support: double sends blocked", posts == 2 && !about.SupportForm.IsEnabled,
+                "one HTTP request is in flight"));
+            pending.SetResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                Content = new StringContent(JsonSerializer.Serialize(new { success = true, requestId = id })) });
+            await sending;
+            checks.Add(new Check("support: matching acknowledgment shows reference", about.SupportSubmitted &&
+                about.SupportStatusText.Text.Contains(id) && about.SupportAnotherBtn.Visibility == Visibility.Visible,
+                "success requires the request reference"));
+            about.SupportAnotherBtn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            checks.Add(new Check("support: send another starts a new draft", !about.SupportSubmitted &&
+                about.SupportMessageInput.Text.Length == 0 && about.CurrentSupportRequest().RequestId != id, "fresh draft"));
 
-            // Failure fallback via the seam: retry + open-in-browser must be offered.
-            AboutWindow.SimulateWebViewInitFailure = true;
-            try
-            {
-                await about.LoadSupportAsync();
-            }
-            finally
-            {
-                AboutWindow.SimulateWebViewInitFailure = false;
-            }
-            await PumpAsync();
-            checks.Add(new Check("support: init failure shows retry + browser fallback",
-                about.SupportStatusPanel.Visibility == Visibility.Visible &&
-                about.SupportErrorButtons.Visibility == Visibility.Visible &&
-                about.SupportRetryBtn.IsVisible && about.SupportErrorBrowserBtn.IsVisible &&
-                about.SupportStatusText.Text == Strings.Get("SupportLoadFailed"),
-                $"status text: '{about.SupportStatusText.Text}'"));
-
-            // A failed init must leave nothing behind: a half-initialized control kept
-            // as WebViewHost.Child would leak once per retry click.
-            checks.Add(new Check("support: failed init leaves no webview behind",
-                about.WebViewHost.Child is null && about.WebViewForTest is null,
-                "control disposed and detached after the failure path"));
         }
         finally
         {
             about.Close();
         }
+        bool cancelledOnClose = false;
+        var closing = new AboutWindow(new AppSupportClient(new HttpClient(new SupportReply(async (_, token) => {
+            try { await Task.Delay(Timeout.Infinite, token); }
+            catch (OperationCanceledException) { cancelledOnClose = true; throw; }
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }))));
+        closing.Show();
+        closing.OpenSupportPane();
+        closing.SupportNameInput.Text = "Ada";
+        closing.SupportEmailInput.Text = "ada@example.com";
+        closing.SupportSubjectInput.Text = "Question";
+        closing.SupportMessageInput.Text = "Help please.";
+        var closingSend = closing.SendSupportAsync();
+        closing.Close();
+        await closingSend;
+        checks.Add(new Check("support: close cancels safely", cancelledOnClose, "in-flight send cancelled without touching closed controls"));
         return checks;
     }
 
@@ -220,6 +196,11 @@ internal static class AboutChecks
         {
             Thread.CurrentThread.CurrentUICulture = previous;
         }
+    }
+
+    private sealed class SupportReply(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => reply(request, token);
     }
 
     private static async Task PumpAsync()

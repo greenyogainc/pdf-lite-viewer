@@ -20,18 +20,20 @@ displays them well, and that's it.
 - Open via dialog (`Ctrl+O`), drag & drop, or double-click a `.pdf` (file association)
 - Print (`Ctrl+P`) through a built-in preview: printer picker, page ranges, copies,
   black & white and draft modes — the job is sent directly, no second OS dialog
-- **About & support** (`F1`) — version and license info, plus a built-in web support
+- **About & support** (`F1`) — version and license info, plus a built-in native support
   form (see *Privacy & network use* below)
 - That's the whole feature list, by design.
 
 ## Privacy & network use
 
 PDF viewing is entirely local: documents never leave your machine and the app
-sends no telemetry. The one thing that goes online is **Contact support** in the
-About window — after an explicit click it loads the Green Yoga Inc support form
-(`greenyogainc.com`) in an embedded browser view, and that page may use the
-website's own analytics; the [Green Yoga Inc privacy policy](https://greenyogainc.com/privacy/)
-applies to it. Nothing is loaded until you ask.
+sends no telemetry. **Contact support** opens a native form locally. Only **Send**
+posts the contact details and message you enter, together with the app version,
+Windows version and language, to Green Yoga Inc at
+https://api.greenyogainc.com/app-support. Documents are never sent. Failed
+requests preserve the draft for manual retry; confirmed requests show a reference.
+The [Green Yoga Inc privacy policy](https://greenyogainc.com/privacy/) applies.
+About links open your default browser when selected.
 
 ## Keyboard reference
 
@@ -49,6 +51,8 @@ applies to it. Nothing is loaded until you ask.
 | `Ctrl+R` | Rotate pages 90° clockwise (view + print; file unchanged) |
 
 ## What's new
+
+- **1.0.18** (2026-10-23) - Contact support now uses a native Windows form with clear privacy details, draft-preserving retries and a delivery reference. Support sends directly through the dedicated app-support API; the embedded support browser and its runtime dependency have been removed.
 
 - **1.0.17** (2026-09-23) — Bug fixes from another full-codebase review: PDFs whose page
   MediaBox collapses to a zero width or height are refused at open time instead of
@@ -124,3 +128,12 @@ SkiaSharp). Pages render lazily on a background thread at the current zoom and
 are dropped when scrolled far off-screen, keeping memory flat on huge documents.
 [PdfPig](https://github.com/UglyToad/PdfPig) is used read-only, on demand, to
 extract the embedded outline for the chapter sidebar.
+
+## Support verification
+
+`dotnet run --project tools/SupportTransportChecks` checks the native API
+protocol, validation, idempotency, errors and matching acknowledgments without network access.
+`dotnet run --project tools/HangProbe -- --about-check` checks the real WPF
+About and support controls on Windows without sending support messages.
+`dotnet run --project tools/StoreShots -- --fill-check` verifies native form
+entry without sending; `--submit-check` explicitly sends one marked live request.

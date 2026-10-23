@@ -96,12 +96,27 @@
   <data name="AboutClose" xml:space="preserve"><value>إغلاق</value></data>
   <data name="AboutBack" xml:space="preserve"><value>رجوع</value></data>
   <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>يفتح {0} في متصفح الويب</value></data>
-  <data name="SupportConsentText" xml:space="preserve"><value>يُفتح نموذج دعم Green Yoga Inc داخل هذه النافذة. يلزم توفر اتصال بالإنترنت، وتُطبَّق سياسة خصوصية Green Yoga Inc. لن يتم تحميل أي شيء حتى تختار المتابعة.</value></data>
-  <data name="SupportLoadButton" xml:space="preserve"><value>تحميل نموذج الدعم</value></data>
-  <data name="SupportOpenInBrowser" xml:space="preserve"><value>فتح في متصفح الويب</value></data>
-  <data name="SupportLoading" xml:space="preserve"><value>جارٍ تحميل نموذج الدعم…</value></data>
-  <data name="SupportLoadFailed" xml:space="preserve"><value>تعذّر تحميل نموذج الدعم. تحقّق من اتصالك بالإنترنت وحاول مرة أخرى، أو افتحه في متصفح الويب.</value></data>
-  <data name="SupportRuntimeMissing" xml:space="preserve"><value>المتصفح المدمج (Microsoft Edge WebView2) غير متوفر على هذا الجهاز. يمكنك بدلًا من ذلك فتح نموذج الدعم في متصفح الويب.</value></data>
-  <data name="SupportRetry" xml:space="preserve"><value>إعادة المحاولة</value></data>
   <data name="NoPagesMessage" xml:space="preserve"><value>لا يحتوي المستند على صفحات قابلة للقراءة.</value></data>
+  <data name="SupportName" xml:space="preserve"><value>الاسم</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>عنوان البريد الإلكتروني</value></data>
+  <data name="SupportSubject" xml:space="preserve"><value>الموضوع</value></data>
+  <data name="SupportMessage" xml:space="preserve"><value>الرسالة</value></data>
+  <data name="SupportIntro" xml:space="preserve"><value>أخبرنا كيف يمكننا مساعدتك. جميع الحقول مطلوبة.</value></data>
+  <data name="SupportPrivacy" xml:space="preserve"><value>تُرسل بيانات الاتصال والرسالة وإصدار التطبيق وإصدار Windows واللغة إلى Green Yoga Inc. لا تُرسل المستندات مطلقًا.</value></data>
+  <data name="SupportDetails" xml:space="preserve"><value>التفاصيل المرفقة بالطلب</value></data>
+  <data name="SupportSend" xml:space="preserve"><value>إرسال الرسالة</value></data>
+  <data name="SupportSending" xml:space="preserve"><value>جارٍ إرسال الرسالة…</value></data>
+  <data name="SupportSent" xml:space="preserve"><value>أُرسلت رسالتك. سنرد عبر البريد الإلكتروني.</value></data>
+  <data name="SupportSendAnother" xml:space="preserve"><value>إرسال رسالة أخرى</value></data>
+  <data name="SupportRequired" xml:space="preserve"><value>أكمل جميع الحقول قبل الإرسال.</value></data>
+  <data name="SupportInvalidEmail" xml:space="preserve"><value>أدخل عنوان بريد إلكتروني صالحًا.</value></data>
+  <data name="SupportSendFailed" xml:space="preserve"><value>تعذر تأكيد التسليم. تحقق من اتصالك وحاول مجددًا. تُحفظ مسودتك هنا.</value></data>
+  <data name="SupportRateLimited" xml:space="preserve"><value>طلبات كثيرة جدًا. انتظر بضع دقائق وحاول مجددًا.</value></data>
+  <data name="SupportInProgress" xml:space="preserve"><value>لا يزال طلبك قيد المعالجة. انتظر قليلًا وحاول مجددًا.</value></data>
+  <data name="SupportConflict" xml:space="preserve"><value>هذا الرقم المرجعي مستخدم بالفعل. عدّل الرسالة قبل إرسالها مجددًا.</value></data>
+  <data name="SupportReferenceFormat" xml:space="preserve"><value>الرقم المرجعي: {0}</value></data>
+  <data name="SupportDetailsFormat" xml:space="preserve"><value>التطبيق: {0}
+الإصدار: {1}
+Windows: {2}
+اللغة: {3}</value></data>
 </root>

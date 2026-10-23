@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
@@ -8,7 +8,7 @@
        (PFN: GreenYogaInc.PDFLiteViewer_4k1k80w661cc6). -->
   <Identity Name="GreenYogaInc.PDFLiteViewer"
             Publisher="CN=1F15826A-1F07-4E59-AC9A-622A84CC59FF"
-            Version="1.0.17.0" />
+            Version="1.0.18.0" />
 
   <Properties>
     <DisplayName>PDF Lite Viewer</DisplayName>

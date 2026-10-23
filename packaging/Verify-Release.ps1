@@ -12,15 +12,13 @@
            - PdfLiteViewer.exe present with FileVersion and ProductVersion == expected
            - every Assets\*.png the manifest references
            - a satellite PdfLiteViewer.resources.dll for every shipped language
-           - the WebView2 loader and managed assemblies
            - the artifact filename version matches the embedded package version
            - provenance: the +<sha> in ProductVersion equals git HEAD, and the
              working tree is clean (-SkipProvenance bypasses, for deliberate
              pre-commit builds only)
       3. Zips (auto-discovered for the version when -Zips is omitted; both RIDs
-         required): exe at the archive root, no MSIX residue, all satellites +
-         WebView2Loader.dll, name matches, and the embedded exe's version and
-         provenance check out too.
+         required): exe at the archive root, no MSIX residue, all satellites,
+         matching filename and executable version/provenance.
       4. -TagCheck: HEAD carries tag v<version>.
       5. -WingetCheck: packaging/winget manifests for <version> exist, reference
          v<version> URLs, and carry the SHA256 of the zips verified in step 3.
@@ -155,8 +153,6 @@ foreach ($msix in $MsixPaths) {
             -not (Test-Path (Join-Path $unpack "$_\PdfLiteViewer.resources.dll")) })
         if ($missingSat) { Fail "${name}: missing satellites: $($missingSat -join ', ')" } else { Ok "${name}: $($satelliteLangs.Count) language satellites present" }
 
-        if (-not (Test-Path (Join-Path $unpack "WebView2Loader.dll"))) { Fail "${name}: WebView2Loader.dll missing" } else { Ok "${name}: WebView2Loader.dll present" }
-        if (-not (Test-Path (Join-Path $unpack "Microsoft.Web.WebView2.Wpf.dll"))) { Fail "${name}: Microsoft.Web.WebView2.Wpf.dll missing" } else { Ok "${name}: WebView2 managed assemblies present" }
     }
     finally {
         Remove-Item $unpack -Recurse -Force -ErrorAction SilentlyContinue
@@ -192,7 +188,6 @@ foreach ($zip in $Zips) {
         $missingSat = @($satelliteLangs | Where-Object { $lang = $_
             -not ($entries | Where-Object { $_ -eq "$lang/PdfLiteViewer.resources.dll" -or $_ -eq "$lang\PdfLiteViewer.resources.dll" }) })
         if ($missingSat) { Fail "${zn}: missing satellites: $($missingSat -join ', ')" } else { Ok "${zn}: satellites present" }
-        if ($entries -notcontains "WebView2Loader.dll") { Fail "${zn}: WebView2Loader.dll missing" } else { Ok "${zn}: WebView2Loader.dll present" }
 
         # The zip's own executable must match the version AND the commit under
         # verification - the 1.0.14 zips were built from two different source states.

@@ -96,12 +96,27 @@ Detalhes registrados em:
   <data name="AboutClose" xml:space="preserve"><value>Fechar</value></data>
   <data name="AboutBack" xml:space="preserve"><value>Voltar</value></data>
   <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>Abre {0} no seu navegador</value></data>
-  <data name="SupportConsentText" xml:space="preserve"><value>O formulário de suporte da Green Yoga Inc é aberto dentro desta janela. É necessária uma conexão com a internet, e a política de privacidade da Green Yoga Inc se aplica. Nada é carregado até que você decida continuar.</value></data>
-  <data name="SupportLoadButton" xml:space="preserve"><value>Carregar formulário de suporte</value></data>
-  <data name="SupportOpenInBrowser" xml:space="preserve"><value>Abrir no navegador</value></data>
-  <data name="SupportLoading" xml:space="preserve"><value>Carregando formulário de suporte…</value></data>
-  <data name="SupportLoadFailed" xml:space="preserve"><value>Não foi possível carregar o formulário de suporte. Verifique sua conexão com a internet e tente novamente, ou abra-o no seu navegador.</value></data>
-  <data name="SupportRuntimeMissing" xml:space="preserve"><value>O navegador incorporado (Microsoft Edge WebView2) não está disponível neste dispositivo. Você pode abrir o formulário de suporte no seu navegador.</value></data>
-  <data name="SupportRetry" xml:space="preserve"><value>Tentar novamente</value></data>
   <data name="NoPagesMessage" xml:space="preserve"><value>O documento não contém páginas legíveis.</value></data>
+  <data name="SupportName" xml:space="preserve"><value>Nome</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>Endereço de e-mail</value></data>
+  <data name="SupportSubject" xml:space="preserve"><value>Assunto</value></data>
+  <data name="SupportMessage" xml:space="preserve"><value>Mensagem</value></data>
+  <data name="SupportIntro" xml:space="preserve"><value>Conte como podemos ajudar. Todos os campos são obrigatórios.</value></data>
+  <data name="SupportPrivacy" xml:space="preserve"><value>Seus dados de contato, mensagem, versão do aplicativo, versão do Windows e idioma são enviados à Green Yoga Inc. Documentos nunca são enviados.</value></data>
+  <data name="SupportDetails" xml:space="preserve"><value>Dados incluídos na solicitação</value></data>
+  <data name="SupportSend" xml:space="preserve"><value>Enviar mensagem</value></data>
+  <data name="SupportSending" xml:space="preserve"><value>Enviando sua mensagem…</value></data>
+  <data name="SupportSent" xml:space="preserve"><value>Sua mensagem foi enviada. Responderemos por e-mail.</value></data>
+  <data name="SupportSendAnother" xml:space="preserve"><value>Enviar outra mensagem</value></data>
+  <data name="SupportRequired" xml:space="preserve"><value>Preencha todos os campos antes de enviar.</value></data>
+  <data name="SupportInvalidEmail" xml:space="preserve"><value>Digite um endereço de e-mail válido.</value></data>
+  <data name="SupportSendFailed" xml:space="preserve"><value>Não foi possível confirmar a entrega. Verifique sua conexão e tente novamente. Seu rascunho fica salvo aqui.</value></data>
+  <data name="SupportRateLimited" xml:space="preserve"><value>Muitas solicitações. Aguarde alguns minutos e tente novamente.</value></data>
+  <data name="SupportInProgress" xml:space="preserve"><value>Sua solicitação ainda está sendo processada. Aguarde um momento e tente novamente.</value></data>
+  <data name="SupportConflict" xml:space="preserve"><value>Esta referência já está em uso. Edite sua mensagem antes de enviar novamente.</value></data>
+  <data name="SupportReferenceFormat" xml:space="preserve"><value>Referência: {0}</value></data>
+  <data name="SupportDetailsFormat" xml:space="preserve"><value>Aplicativo: {0}
+Versão: {1}
+Windows: {2}
+Idioma: {3}</value></data>
 </root>

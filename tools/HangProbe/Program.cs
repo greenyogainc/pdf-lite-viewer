@@ -48,7 +48,13 @@ internal static class Program
         {
             try
             {
-                _exitCode = await RunAsync(pages, pdf);
+                if (args.Contains("--about-check"))
+                {
+                    var checks = await AboutChecks.RunAsync();
+                    foreach (var check in checks) Console.WriteLine(check);
+                    _exitCode = checks.All(check => check.Ok) ? 0 : 1;
+                }
+                else _exitCode = await RunAsync(pages, pdf);
             }
             catch (Exception ex)
             {

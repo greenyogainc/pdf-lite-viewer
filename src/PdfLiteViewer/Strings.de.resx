@@ -96,12 +96,27 @@ Details protokolliert unter:
   <data name="AboutClose" xml:space="preserve"><value>Schließen</value></data>
   <data name="AboutBack" xml:space="preserve"><value>Zurück</value></data>
   <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>Öffnet {0} in Ihrem Webbrowser</value></data>
-  <data name="SupportConsentText" xml:space="preserve"><value>Das Support-Formular von Green Yoga Inc wird in diesem Fenster geöffnet. Eine Internetverbindung ist erforderlich, und es gilt die Datenschutzerklärung von Green Yoga Inc. Es wird nichts geladen, bevor Sie fortfahren.</value></data>
-  <data name="SupportLoadButton" xml:space="preserve"><value>Support-Formular laden</value></data>
-  <data name="SupportOpenInBrowser" xml:space="preserve"><value>Im Webbrowser öffnen</value></data>
-  <data name="SupportLoading" xml:space="preserve"><value>Support-Formular wird geladen…</value></data>
-  <data name="SupportLoadFailed" xml:space="preserve"><value>Das Support-Formular konnte nicht geladen werden. Überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut, oder öffnen Sie es in Ihrem Webbrowser.</value></data>
-  <data name="SupportRuntimeMissing" xml:space="preserve"><value>Der eingebettete Browser (Microsoft Edge WebView2) ist auf diesem Gerät nicht verfügbar. Sie können das Support-Formular stattdessen in Ihrem Webbrowser öffnen.</value></data>
-  <data name="SupportRetry" xml:space="preserve"><value>Erneut versuchen</value></data>
   <data name="NoPagesMessage" xml:space="preserve"><value>Das Dokument enthält keine lesbaren Seiten.</value></data>
+  <data name="SupportName" xml:space="preserve"><value>Name</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>E-Mail-Adresse</value></data>
+  <data name="SupportSubject" xml:space="preserve"><value>Betreff</value></data>
+  <data name="SupportMessage" xml:space="preserve"><value>Nachricht</value></data>
+  <data name="SupportIntro" xml:space="preserve"><value>Wie können wir Ihnen helfen? Alle Felder sind erforderlich.</value></data>
+  <data name="SupportPrivacy" xml:space="preserve"><value>Ihre Kontaktdaten, Nachricht, App-Version, Windows-Version und Sprache werden an Green Yoga Inc gesendet. Dokumente werden niemals gesendet.</value></data>
+  <data name="SupportDetails" xml:space="preserve"><value>Mitgesendete Angaben</value></data>
+  <data name="SupportSend" xml:space="preserve"><value>Nachricht senden</value></data>
+  <data name="SupportSending" xml:space="preserve"><value>Nachricht wird gesendet…</value></data>
+  <data name="SupportSent" xml:space="preserve"><value>Ihre Nachricht wurde gesendet. Wir antworten per E-Mail.</value></data>
+  <data name="SupportSendAnother" xml:space="preserve"><value>Weitere Nachricht senden</value></data>
+  <data name="SupportRequired" xml:space="preserve"><value>Füllen Sie vor dem Senden alle Felder aus.</value></data>
+  <data name="SupportInvalidEmail" xml:space="preserve"><value>Geben Sie eine gültige E-Mail-Adresse ein.</value></data>
+  <data name="SupportSendFailed" xml:space="preserve"><value>Die Zustellung konnte nicht bestätigt werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut. Ihr Entwurf bleibt hier erhalten.</value></data>
+  <data name="SupportRateLimited" xml:space="preserve"><value>Zu viele Anfragen. Warten Sie einige Minuten und versuchen Sie es erneut.</value></data>
+  <data name="SupportInProgress" xml:space="preserve"><value>Ihre Anfrage wird noch bearbeitet. Warten Sie kurz und versuchen Sie es erneut.</value></data>
+  <data name="SupportConflict" xml:space="preserve"><value>Diese Referenz wird bereits verwendet. Ändern Sie Ihre Nachricht vor dem erneuten Senden.</value></data>
+  <data name="SupportReferenceFormat" xml:space="preserve"><value>Referenz: {0}</value></data>
+  <data name="SupportDetailsFormat" xml:space="preserve"><value>App: {0}
+Version: {1}
+Windows: {2}
+Sprache: {3}</value></data>
 </root>
