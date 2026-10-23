@@ -18,7 +18,7 @@ namespace StoreShots;
 /// through nine scenes, captures the composited screen at a consistent resolution,
 /// verifies every PNG against the Store's desktop minimum (1366x768), and writes
 /// captions.md next to the images. Needs an interactive desktop session, a screen of
-/// at least the target resolution, and — for the support-form scene — internet access.
+/// at least the target resolution, with native support scenes available offline.
 /// </summary>
 internal static class Program
 {
@@ -43,7 +43,8 @@ internal static class Program
             : Path.Combine(repoRoot, "packaging", "store-screenshots");
         Directory.CreateDirectory(outDir);
 
-        if (SystemParameters.PrimaryScreenWidth < TargetW || SystemParameters.PrimaryScreenHeight < TargetH)
+        if (!args.Contains("--fill-check") && !args.Contains("--submit-check") &&
+            (SystemParameters.PrimaryScreenWidth < TargetW || SystemParameters.PrimaryScreenHeight < TargetH))
         {
             Console.Error.WriteLine(
                 $"Primary screen is smaller than {TargetW}x{TargetH}; captures would be clipped. Aborting.");
@@ -59,7 +60,7 @@ internal static class Program
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         // --submit-check really sends one test message; --fill-check stops short of the
-        // click and only proves the form accepts input and validates inside the embed.
+        // click and only proves the native form accepts input and validates.
         bool submitCheck = args.Contains("--submit-check");
         bool fillCheck = args.Contains("--fill-check");
         Dispatcher.CurrentDispatcher.InvokeAsync(async () =>
@@ -164,22 +165,14 @@ internal static class Program
         about.Show();
         await RenderPauseAsync(700);
         Capture(window, outDir, "6-about.png",
-            "The About window: version, MIT license and Green Yoga Inc links — plus built-in web support.");
+            "The About window: version, MIT license and Green Yoga Inc links — plus native support.");
 
-        // --- 7: embedded support form (requires internet) ------------------
+        // --- 7: native support form (offline) ------------------------------
+        about.Height = 920;
         about.OpenSupportPane();
-        await about.LoadSupportAsync();
-        bool loaded = await WaitUntilAsync(() => about.WebViewHost.Visibility == Visibility.Visible,
-            TimeSpan.FromSeconds(45));
-        if (!loaded)
-        {
-            Console.Error.WriteLine("support form did not load — scene 7 failed (is the network up?)");
-            about.Close();
-            return 1;
-        }
-        await RenderPauseAsync(5000);   // let the page paint fully
+        await RenderPauseAsync(700);
         Capture(window, outDir, "7-support-form.png",
-            "Contact support without leaving the app: the Green Yoga Inc support form, loaded only when you choose. PDF viewing itself never goes online.");
+            "Contact support inside the app. Write your message in the native form; only Send contacts Green Yoga Inc.");
         about.Close();
         await SettleAsync();
         window.Close();
@@ -226,101 +219,40 @@ internal static class Program
         return bad == 0 ? 0 : 1;
     }
 
-    /// <summary>
-    /// `--submit-check`: proves the embedded support form can really submit from this app.
-    /// Loads the live form, fills it with clearly-marked automated test values (no real
-    /// personal data; the honeypot field is left alone), clicks Send, and watches the DOM
-    /// for the site's success state. Sends exactly one test message to Green Yoga's own
-    /// support inbox.
-    /// </summary>
+    /// <summary>Native form smoke check; --submit-check explicitly sends one marked support request.</summary>
     private static async Task<int> RunSubmitCheckAsync(bool clickSend)
     {
-        var about = new PdfLiteViewer.AboutWindow();
-        about.Show();
-        about.OpenSupportPane();
-        await about.LoadSupportAsync();
-
-        bool loaded = await WaitUntilAsync(() => about.WebViewHost.Visibility == Visibility.Visible,
-            TimeSpan.FromSeconds(45));
-        if (!loaded || about.WebViewForTest?.CoreWebView2 is not { } core)
+        var about = new AboutWindow();
+        try
         {
-            Console.Error.WriteLine("submit-check: support form did not load");
-            return 1;
+            about.Height = 920;
+            about.Show();
+            about.OpenSupportPane();
+            about.SupportNameInput.Text = "PDF Lite Viewer release check";
+            about.SupportEmailInput.Text = "noreply@greenyogainc.com";
+            about.SupportSubjectInput.Text = "Automated native support check - please ignore";
+            about.SupportMessageInput.Text = "Automated verification of native app support. No action needed.";
+            bool valid = GreenYoga.Support.AppSupportClient.Validate(about.CurrentSupportRequest()) is null;
+            if (!clickSend)
+            {
+                await RenderPauseAsync(700);
+                var snapshot = new RenderTargetBitmap((int)about.ActualWidth, (int)about.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+                snapshot.Render(about);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(snapshot));
+                var shotPath = Path.Combine(Path.GetTempPath(), "pdf-native-support.png");
+                using (var output = File.Create(shotPath)) encoder.Save(output);
+                Console.WriteLine("Support screenshot: " + shotPath);
+                Console.WriteLine(valid ? "fill-check PASS: native fields validate; nothing sent." : "fill-check FAIL");
+                return valid ? 0 : 1;
+            }
+            await about.SendSupportAsync();
+            Console.WriteLine(about.SupportStatusText.Text);
+            return about.SupportSubmitted ? 0 : 1;
         }
-        await Task.Delay(3000);   // let the page hydrate
-
-        // React-controlled inputs: assign through the prototype setter and raise `input`,
-        // or the framework never sees the value.
-        const string fill = """
-            (() => {
-              const set = (el, v, proto) => {
-                Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-              };
-              const name = document.getElementById('name');
-              const email = document.getElementById('email');
-              const subject = document.getElementById('subject');
-              const message = document.getElementById('message');
-              if (!name || !email || !subject || !message) return 'missing-fields';
-              set(name, 'PDF Lite Viewer release check', HTMLInputElement.prototype);
-              set(email, 'noreply@greenyogainc.com', HTMLInputElement.prototype);
-              set(subject, 'Automated embedded-form check - please ignore', HTMLInputElement.prototype);
-              set(message, 'Automated verification that the embedded support form in PDF Lite Viewer can submit. No action needed.', HTMLTextAreaElement.prototype);
-              const btn = document.querySelector('form button[type=submit]');
-              if (!btn) return 'missing-button';
-              const form = btn.closest('form');
-              const valid = form ? form.checkValidity() : false;
-              if (!window.__plvClick) return valid && !btn.disabled ? 'fill-ok' : 'fill-invalid';
-              btn.click();
-              return 'submitted';
-            })()
-            """;
-        if (clickSend)
-            await core.ExecuteScriptAsync("window.__plvClick = true");
-        var fillResult = await core.ExecuteScriptAsync(fill);
-        Console.WriteLine($"{(clickSend ? "submit" : "fill")}-check: fill result -> {fillResult}");
-        if (!clickSend)
-        {
-            about.Close();
-            bool ok = fillResult.Contains("fill-ok");
-            Console.WriteLine(ok
-                ? "fill-check PASS: fields accept input, the form validates, Send is enabled. Nothing was sent."
-                : $"fill-check FAIL: {fillResult}");
-            return ok ? 0 : 1;
-        }
-        if (!fillResult.Contains("submitted"))
-            return 1;
-
-        const string probe = """
-            (() => {
-              const txt = document.body.innerText.toLowerCase();
-              if (txt.includes('thank') || txt.includes('sent') || txt.includes('received') || txt.includes('talk soon')) return 'success';
-              if (txt.includes('something went wrong') || txt.includes('failed')) return 'error';
-              const form = document.querySelector('form.space-y-6');
-              if (!form) return 'success';
-              const btn = form.querySelector('button[type=submit]');
-              return btn && btn.disabled ? 'sending' : 'pending';
-            })()
-            """;
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-        string state = "pending";
-        while (DateTime.UtcNow < deadline)
-        {
-            state = (await core.ExecuteScriptAsync(probe)).Trim('"');
-            Console.WriteLine($"submit-check: state = {state}");
-            if (state is "success" or "error") break;
-            await Task.Delay(1500);
-        }
-        about.Close();
-
-        Console.WriteLine(state == "success"
-            ? "submit-check PASS: the embedded form submitted and the site confirmed it."
-            : $"submit-check FAIL: final state '{state}'.");
-        return state == "success" ? 0 : 1;
+        finally { about.Close(); }
     }
 
-    /// <summary>Borderless, topmost, exactly the capture rectangle: the capture then
-    /// contains only the app — no taskbar, no desktop, no terminal.</summary>
     private static void Prepare(Window window)
     {
         var dpi = VisualTreeHelper.GetDpi(window);
@@ -353,9 +285,42 @@ internal static class Program
                 $"which does not contain the (0,0) {TargetW}x{TargetH} capture rectangle");
 
         var path = Path.Combine(outDir, file);
-        ScreenCapture.CaptureRect(0, 0, TargetW, TargetH, path);
+        // Every app surface is now WPF. Render the app itself so an unrelated
+        // foreground window can never contaminate a Store listing screenshot.
+        var composite = new DrawingVisual();
+        using (var drawing = composite.RenderOpen())
+        {
+            drawing.DrawImage(RenderWindow(window), new Rect(0, 0, TargetW, TargetH));
+            foreach (Window dialog in window.OwnedWindows)
+            {
+                if (!dialog.IsVisible) continue;
+                var dpi = VisualTreeHelper.GetDpi(dialog);
+                var width = dialog.ActualWidth * dpi.DpiScaleX;
+                var height = dialog.ActualHeight * dpi.DpiScaleY;
+                drawing.DrawImage(RenderWindow(dialog),
+                    new Rect((TargetW - width) / 2, (TargetH - height) / 2, width, height));
+            }
+        }
+        var image = new RenderTargetBitmap(TargetW, TargetH, 96, 96, PixelFormats.Pbgra32);
+        image.Render(composite);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(image));
+        using (var output = File.Create(path)) encoder.Save(output);
         Captured.Add(new Shot(file, caption));
         Console.WriteLine($"captured: {path}");
+    }
+
+    private static BitmapSource RenderWindow(Window window)
+    {
+        window.UpdateLayout();
+        var dpi = VisualTreeHelper.GetDpi(window);
+        var image = new RenderTargetBitmap(
+            (int)Math.Ceiling(window.ActualWidth * dpi.DpiScaleX),
+            (int)Math.Ceiling(window.ActualHeight * dpi.DpiScaleY),
+            96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY, PixelFormats.Pbgra32);
+        image.Render(window);
+        image.Freeze();
+        return image;
     }
 
     private static int VerifyAndWriteCaptions(string outDir)

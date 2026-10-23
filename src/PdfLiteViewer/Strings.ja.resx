@@ -96,12 +96,27 @@
   <data name="AboutClose" xml:space="preserve"><value>閉じる</value></data>
   <data name="AboutBack" xml:space="preserve"><value>戻る</value></data>
   <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>{0} を Web ブラウザーで開きます</value></data>
-  <data name="SupportConsentText" xml:space="preserve"><value>Green Yoga Inc のサポートフォームはこのウィンドウ内で開きます。インターネット接続が必要で、Green Yoga Inc のプライバシーポリシーが適用されます。続行を選択するまで、何も読み込まれません。</value></data>
-  <data name="SupportLoadButton" xml:space="preserve"><value>サポートフォームを読み込む</value></data>
-  <data name="SupportOpenInBrowser" xml:space="preserve"><value>Web ブラウザーで開く</value></data>
-  <data name="SupportLoading" xml:space="preserve"><value>サポートフォームを読み込んでいます…</value></data>
-  <data name="SupportLoadFailed" xml:space="preserve"><value>サポートフォームを読み込めませんでした。インターネット接続を確認してもう一度お試しいただくか、Web ブラウザーで開いてください。</value></data>
-  <data name="SupportRuntimeMissing" xml:space="preserve"><value>組み込みブラウザー (Microsoft Edge WebView2) はこのデバイスでは利用できません。代わりに Web ブラウザーでサポートフォームを開くことができます。</value></data>
-  <data name="SupportRetry" xml:space="preserve"><value>再試行</value></data>
   <data name="NoPagesMessage" xml:space="preserve"><value>この文書には読み取り可能なページがありません。</value></data>
+  <data name="SupportName" xml:space="preserve"><value>お名前</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>メールアドレス</value></data>
+  <data name="SupportSubject" xml:space="preserve"><value>件名</value></data>
+  <data name="SupportMessage" xml:space="preserve"><value>メッセージ</value></data>
+  <data name="SupportIntro" xml:space="preserve"><value>お困りの内容をお知らせください。すべての項目は必須です。</value></data>
+  <data name="SupportPrivacy" xml:space="preserve"><value>連絡先、メッセージ、アプリのバージョン、Windowsのバージョン、言語がGreen Yoga Incに送信されます。文書は送信されません。</value></data>
+  <data name="SupportDetails" xml:space="preserve"><value>送信される詳細情報</value></data>
+  <data name="SupportSend" xml:space="preserve"><value>メッセージを送信</value></data>
+  <data name="SupportSending" xml:space="preserve"><value>送信中…</value></data>
+  <data name="SupportSent" xml:space="preserve"><value>メッセージを送信しました。メールで返信いたします。</value></data>
+  <data name="SupportSendAnother" xml:space="preserve"><value>別のメッセージを送信</value></data>
+  <data name="SupportRequired" xml:space="preserve"><value>すべての項目を入力してください。</value></data>
+  <data name="SupportInvalidEmail" xml:space="preserve"><value>有効なメールアドレスを入力してください。</value></data>
+  <data name="SupportSendFailed" xml:space="preserve"><value>送信を確認できませんでした。接続を確認して再試行してください。下書きはこの画面に保持されます。</value></data>
+  <data name="SupportRateLimited" xml:space="preserve"><value>リクエストが多すぎます。数分待ってから再試行してください。</value></data>
+  <data name="SupportInProgress" xml:space="preserve"><value>リクエストを処理中です。少し待ってから再試行してください。</value></data>
+  <data name="SupportConflict" xml:space="preserve"><value>この受付番号は使用済みです。メッセージを編集して再送信してください。</value></data>
+  <data name="SupportReferenceFormat" xml:space="preserve"><value>受付番号：{0}</value></data>
+  <data name="SupportDetailsFormat" xml:space="preserve"><value>アプリ：{0}
+バージョン：{1}
+Windows：{2}
+言語：{3}</value></data>
 </root>

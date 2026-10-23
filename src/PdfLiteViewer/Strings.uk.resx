@@ -96,12 +96,27 @@
   <data name="AboutClose" xml:space="preserve"><value>Закрити</value></data>
   <data name="AboutBack" xml:space="preserve"><value>Назад</value></data>
   <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>Відкриває {0} у вашому веб-браузері</value></data>
-  <data name="SupportConsentText" xml:space="preserve"><value>Форма підтримки Green Yoga Inc відкривається в цьому вікні. Потрібне підключення до інтернету, і застосовується політика конфіденційності Green Yoga Inc. Нічого не завантажується, доки ви не вирішите продовжити.</value></data>
-  <data name="SupportLoadButton" xml:space="preserve"><value>Завантажити форму підтримки</value></data>
-  <data name="SupportOpenInBrowser" xml:space="preserve"><value>Відкрити у веб-браузері</value></data>
-  <data name="SupportLoading" xml:space="preserve"><value>Завантаження форми підтримки…</value></data>
-  <data name="SupportLoadFailed" xml:space="preserve"><value>Не вдалося завантажити форму підтримки. Перевірте підключення до інтернету й спробуйте ще раз або відкрийте її у веб-браузері.</value></data>
-  <data name="SupportRuntimeMissing" xml:space="preserve"><value>Вбудований браузер (Microsoft Edge WebView2) недоступний на цьому пристрої. Замість цього ви можете відкрити форму підтримки у веб-браузері.</value></data>
-  <data name="SupportRetry" xml:space="preserve"><value>Спробувати ще раз</value></data>
   <data name="NoPagesMessage" xml:space="preserve"><value>Документ не містить придатних для читання сторінок.</value></data>
+  <data name="SupportName" xml:space="preserve"><value>Ім’я</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>Електронна пошта</value></data>
+  <data name="SupportSubject" xml:space="preserve"><value>Тема</value></data>
+  <data name="SupportMessage" xml:space="preserve"><value>Повідомлення</value></data>
+  <data name="SupportIntro" xml:space="preserve"><value>Розкажіть, як ми можемо допомогти. Усі поля обов’язкові.</value></data>
+  <data name="SupportPrivacy" xml:space="preserve"><value>Ваші контактні дані, повідомлення, версія застосунку, версія Windows і мова надсилаються до Green Yoga Inc. Документи ніколи не надсилаються.</value></data>
+  <data name="SupportDetails" xml:space="preserve"><value>Дані, включені до запиту</value></data>
+  <data name="SupportSend" xml:space="preserve"><value>Надіслати повідомлення</value></data>
+  <data name="SupportSending" xml:space="preserve"><value>Надсилання повідомлення…</value></data>
+  <data name="SupportSent" xml:space="preserve"><value>Повідомлення надіслано. Ми відповімо електронною поштою.</value></data>
+  <data name="SupportSendAnother" xml:space="preserve"><value>Надіслати ще повідомлення</value></data>
+  <data name="SupportRequired" xml:space="preserve"><value>Заповніть усі поля перед надсиланням.</value></data>
+  <data name="SupportInvalidEmail" xml:space="preserve"><value>Введіть дійсну адресу електронної пошти.</value></data>
+  <data name="SupportSendFailed" xml:space="preserve"><value>Не вдалося підтвердити доставку. Перевірте з’єднання й повторіть спробу. Чернетка збережена тут.</value></data>
+  <data name="SupportRateLimited" xml:space="preserve"><value>Забагато запитів. Зачекайте кілька хвилин і повторіть спробу.</value></data>
+  <data name="SupportInProgress" xml:space="preserve"><value>Ваш запит ще обробляється. Зачекайте трохи й повторіть спробу.</value></data>
+  <data name="SupportConflict" xml:space="preserve"><value>Цей номер уже використовується. Змініть повідомлення перед повторним надсиланням.</value></data>
+  <data name="SupportReferenceFormat" xml:space="preserve"><value>Номер звернення: {0}</value></data>
+  <data name="SupportDetailsFormat" xml:space="preserve"><value>Застосунок: {0}
+Версія: {1}
+Windows: {2}
+Мова: {3}</value></data>
 </root>

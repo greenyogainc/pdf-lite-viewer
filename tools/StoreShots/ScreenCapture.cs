@@ -7,9 +7,8 @@ using System.Windows.Media.Imaging;
 namespace StoreShots;
 
 /// <summary>
-/// GDI screen capture of the DWM-composited desktop, so HWND-hosted content
-/// (the WebView2 support form) is captured exactly as the user sees it —
-/// RenderTargetBitmap would leave an airspace hole where the browser sits.
+/// GDI screen capture of the DWM-composited desktop, matching the native windows
+/// exactly as users see them.
 /// No System.Drawing dependency: the HBITMAP goes straight to a WPF PNG encoder.
 /// </summary>
 internal static class ScreenCapture

@@ -11,7 +11,7 @@
     <Window.Resources>
         <SolidColorBrush x:Key="BarFg" Color="#FFDDDDDD"/>
         <SolidColorBrush x:Key="DimFg" Color="#FF9A9A9A"/>
-        <SolidColorBrush x:Key="Accent" Color="#FF1F5B94"/>
+        <SolidColorBrush x:Key="Accent" Color="#FF2D79C7"/>
 
         <!-- Same visual language as the toolbar buttons, plus a focus ring the toolbar
              does not need: this window is keyboard-first, so focus must be visible. -->
@@ -112,6 +112,17 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="SupportInput" TargetType="TextBox" BasedOn="{StaticResource FocusRing}">
+            <Setter Property="Background" Value="#FF292929"/><Setter Property="Foreground" Value="White"/>
+            <Setter Property="CaretBrush" Value="White"/><Setter Property="BorderBrush" Value="#FF626262"/>
+            <Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="14"/>
+            <Setter Property="MinHeight" Value="38"/><Setter Property="Margin" Value="0,0,0,14"/>
+            <Style.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="#FF81B7EC"/></Trigger></Style.Triggers>
+        </Style>
+        <Style x:Key="SupportLabel" TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource BarFg}"/><Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="0,0,0,6"/>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -181,41 +192,31 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- ===================== Support ===================== -->
-            <Grid x:Name="SupportPanel" Visibility="Collapsed">
-                <!-- Consent: nothing loads until the user explicitly asks. -->
-                <StackPanel x:Name="SupportConsentPanel" MaxWidth="520"
-                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="28">
-                    <TextBlock Text="{local:Loc AboutContactSupport}" Foreground="White"
-                               FontSize="18" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="SupportConsentText" Text="{local:Loc SupportConsentText}"
-                               Foreground="{StaticResource BarFg}" FontSize="13"
-                               TextWrapping="Wrap" Margin="0,12,0,0"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                        <Button x:Name="SupportLoadBtn" Style="{StaticResource AccentButton}" Margin="0"
-                                Content="{local:Loc SupportLoadButton}" Click="LoadSupport_Click"/>
-                        <Button x:Name="SupportBrowserBtn" Style="{StaticResource DialogButton}"
-                                Content="{local:Loc SupportOpenInBrowser}" Click="OpenSupportInBrowser_Click"/>
+            <ScrollViewer x:Name="SupportPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Focusable="False">
+                <Border Background="#FF1E1E1E" BorderBrush="#FF4A4A4A" BorderThickness="1" CornerRadius="8" Padding="24" Margin="24" MaxWidth="640" TextElement.FontFamily="Segoe UI">
+                    <StackPanel>
+                        <TextBlock Text="{local:Loc AboutContactSupport}" Foreground="White" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="{local:Loc SupportIntro}" Foreground="{StaticResource BarFg}" FontSize="14" TextWrapping="Wrap" Margin="0,8,0,18"/>
+                        <StackPanel x:Name="SupportForm">
+                            <Label x:Name="SupportNameLabel" Content="{local:Loc SupportName}" Target="{Binding ElementName=SupportNameInput}" Style="{StaticResource SupportLabel}"/>
+                            <TextBox x:Name="SupportNameInput" Style="{StaticResource SupportInput}" MaxLength="200" AutomationProperties.LabeledBy="{Binding ElementName=SupportNameLabel}"/>
+                            <Label x:Name="SupportEmailLabel" Content="{local:Loc SupportEmail}" Target="{Binding ElementName=SupportEmailInput}" Style="{StaticResource SupportLabel}"/>
+                            <TextBox x:Name="SupportEmailInput" Style="{StaticResource SupportInput}" MaxLength="320" FlowDirection="LeftToRight" AutomationProperties.LabeledBy="{Binding ElementName=SupportEmailLabel}"/>
+                            <Label x:Name="SupportSubjectLabel" Content="{local:Loc SupportSubject}" Target="{Binding ElementName=SupportSubjectInput}" Style="{StaticResource SupportLabel}"/>
+                            <TextBox x:Name="SupportSubjectInput" Style="{StaticResource SupportInput}" MaxLength="200" AutomationProperties.LabeledBy="{Binding ElementName=SupportSubjectLabel}"/>
+                            <Label x:Name="SupportMessageLabel" Content="{local:Loc SupportMessage}" Target="{Binding ElementName=SupportMessageInput}" Style="{StaticResource SupportLabel}"/>
+                            <TextBox x:Name="SupportMessageInput" Style="{StaticResource SupportInput}" MaxLength="5000" MinHeight="130" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.LabeledBy="{Binding ElementName=SupportMessageLabel}"/>
+                            <TextBlock Text="{local:Loc SupportPrivacy}" Foreground="{StaticResource DimFg}" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                            <Expander Header="{local:Loc SupportDetails}" Foreground="{StaticResource BarFg}" Margin="0,0,0,16">
+                                <TextBlock x:Name="SupportDetailsText" Foreground="{StaticResource BarFg}" FontSize="13" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                            </Expander>
+                            <Button x:Name="SupportSendBtn" Content="{local:Loc SupportSend}" Click="SendSupport_Click" Style="{StaticResource AccentButton}" HorizontalAlignment="Left" Margin="0" Padding="20,10"/>
+                        </StackPanel>
+                        <TextBlock x:Name="SupportStatusText" Visibility="Collapsed" Foreground="{StaticResource BarFg}" FontSize="14" TextWrapping="Wrap" Margin="0,16,0,0" Focusable="True" AutomationProperties.LiveSetting="Polite"/>
+                        <Button x:Name="SupportAnotherBtn" Content="{local:Loc SupportSendAnother}" Click="SendAnother_Click" Style="{StaticResource AccentButton}" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,16,0,0" Padding="20,10"/>
                     </StackPanel>
-                </StackPanel>
-
-                <!-- Loading / failure states. -->
-                <StackPanel x:Name="SupportStatusPanel" MaxWidth="520" Visibility="Collapsed"
-                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="28">
-                    <TextBlock x:Name="SupportStatusText" Foreground="{StaticResource BarFg}" FontSize="13"
-                               TextWrapping="Wrap" Text="{local:Loc SupportLoading}"/>
-                    <StackPanel x:Name="SupportErrorButtons" Orientation="Horizontal" Margin="0,20,0,0"
-                                Visibility="Collapsed">
-                        <Button x:Name="SupportRetryBtn" Style="{StaticResource AccentButton}" Margin="0"
-                                Content="{local:Loc SupportRetry}" Click="RetrySupport_Click"/>
-                        <Button x:Name="SupportErrorBrowserBtn" Style="{StaticResource DialogButton}"
-                                Content="{local:Loc SupportOpenInBrowser}" Click="OpenSupportInBrowser_Click"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- The WebView2 control is created in code the first time the user consents. -->
-                <Border x:Name="WebViewHost" Visibility="Collapsed" Background="White"/>
-            </Grid>
+                </Border>
+            </ScrollViewer>
         </Grid>
     </DockPanel>
 </Window>

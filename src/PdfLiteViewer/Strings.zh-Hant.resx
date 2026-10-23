@@ -96,12 +96,27 @@
   <data name="AboutClose" xml:space="preserve"><value>關閉</value></data>
   <data name="AboutBack" xml:space="preserve"><value>返回</value></data>
   <data name="AboutOpensInBrowserTooltipFormat" xml:space="preserve"><value>在您的網頁瀏覽器中開啟 {0}</value></data>
-  <data name="SupportConsentText" xml:space="preserve"><value>Green Yoga Inc 支援表單會在此視窗內開啟。需要網際網路連線，並適用 Green Yoga Inc 的隱私權政策。在您選擇繼續之前，不會載入任何內容。</value></data>
-  <data name="SupportLoadButton" xml:space="preserve"><value>載入支援表單</value></data>
-  <data name="SupportOpenInBrowser" xml:space="preserve"><value>在網頁瀏覽器中開啟</value></data>
-  <data name="SupportLoading" xml:space="preserve"><value>正在載入支援表單…</value></data>
-  <data name="SupportLoadFailed" xml:space="preserve"><value>無法載入支援表單。請檢查您的網際網路連線並重試，或在網頁瀏覽器中開啟。</value></data>
-  <data name="SupportRuntimeMissing" xml:space="preserve"><value>這部裝置上沒有內嵌瀏覽器 (Microsoft Edge WebView2)。您可以改為在網頁瀏覽器中開啟支援表單。</value></data>
-  <data name="SupportRetry" xml:space="preserve"><value>重試</value></data>
   <data name="NoPagesMessage" xml:space="preserve"><value>此文件不包含可讀取的頁面。</value></data>
+  <data name="SupportName" xml:space="preserve"><value>姓名</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>電子郵件地址</value></data>
+  <data name="SupportSubject" xml:space="preserve"><value>主旨</value></data>
+  <data name="SupportMessage" xml:space="preserve"><value>訊息</value></data>
+  <data name="SupportIntro" xml:space="preserve"><value>請告訴我們您需要什麼協助。所有欄位均為必填。</value></data>
+  <data name="SupportPrivacy" xml:space="preserve"><value>您的聯絡資訊、訊息、應用程式版本、Windows版本和語言將傳送給Green Yoga Inc。絕不會傳送文件。</value></data>
+  <data name="SupportDetails" xml:space="preserve"><value>請求中包含的資訊</value></data>
+  <data name="SupportSend" xml:space="preserve"><value>傳送訊息</value></data>
+  <data name="SupportSending" xml:space="preserve"><value>正在傳送訊息…</value></data>
+  <data name="SupportSent" xml:space="preserve"><value>訊息已傳送。我們將透過電子郵件回覆。</value></data>
+  <data name="SupportSendAnother" xml:space="preserve"><value>傳送另一則訊息</value></data>
+  <data name="SupportRequired" xml:space="preserve"><value>請填寫所有欄位後再傳送。</value></data>
+  <data name="SupportInvalidEmail" xml:space="preserve"><value>請輸入有效的電子郵件地址。</value></data>
+  <data name="SupportSendFailed" xml:space="preserve"><value>無法確認送達。請檢查連線後重試。草稿會保留在此處。</value></data>
+  <data name="SupportRateLimited" xml:space="preserve"><value>請求過多。請稍候幾分鐘再重試。</value></data>
+  <data name="SupportInProgress" xml:space="preserve"><value>請求仍在處理中。請稍後重試。</value></data>
+  <data name="SupportConflict" xml:space="preserve"><value>此參考編號已被使用。請修改訊息後重新傳送。</value></data>
+  <data name="SupportReferenceFormat" xml:space="preserve"><value>參考編號：{0}</value></data>
+  <data name="SupportDetailsFormat" xml:space="preserve"><value>應用程式：{0}
+版本：{1}
+Windows：{2}
+語言：{3}</value></data>
 </root>
