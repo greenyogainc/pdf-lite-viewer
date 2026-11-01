@@ -29,6 +29,11 @@ internal static class Program
     [STAThread]
     internal static int Main(string[] args)
     {
+        // First statement, before any window exists: this machine's default printer is a
+        // physical one, and the preview window selects it on its own.
+        PrintJob.Submit = (_, _, _) =>
+            throw new InvalidOperationException("HangProbe must never reach a real print queue.");
+
         int pages = args.Length > 0 && int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)
             ? Math.Clamp(n, 1, 20_000)
             : 600;
