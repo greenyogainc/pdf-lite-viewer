@@ -212,7 +212,7 @@ public sealed class PdfDoc
         {
             ct.ThrowIfCancellationRequested();
 
-            var title = node.Title?.Trim();
+            var title = node.Title.Trim();
             if (string.IsNullOrEmpty(title))
                 title = untitledFallback;
 
