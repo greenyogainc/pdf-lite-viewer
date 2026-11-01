@@ -51,19 +51,23 @@ internal static class ContractChecks
         var path = Path.Combine(Path.GetTempPath(), $"hangprobe-zero-pages-{Guid.NewGuid():N}.pdf");
         try
         {
-            WriteZeroPagePdf(path);
+            PdfFixtures.WriteZeroPagePdf(path);
             try
             {
                 var doc = new PdfDoc(path);
                 return new Check(name, false,
                     $"PdfDoc opened it with PageCount={doc.PageCount}; RebuildItems would index an empty PageSizes");
             }
+            catch (UnreadablePagesException ex)
+            {
+                // The type is the contract: the main window maps it to a localized message,
+                // where any other exception falls through to the generic one.
+                return new Check(name, true, $"rejected with {ex.GetType().Name}: {ex.Message}");
+            }
             catch (Exception ex)
             {
-                // Any rejection is the contract: MainWindow.OpenFileAsync catches Exception and
-                // reports it. PdfDoc's own guard is the expected source, PDFium refusing the
-                // file outright would be just as acceptable.
-                return new Check(name, true, $"rejected with {ex.GetType().Name}: {ex.Message}");
+                return new Check(name, false,
+                    $"rejected with {ex.GetType().Name} instead of UnreadablePagesException: {ex.Message}");
             }
         }
         catch (Exception ex)
@@ -74,28 +78,6 @@ internal static class ContractChecks
         {
             try { File.Delete(path); } catch { }
         }
-    }
-
-    /// <summary>A well-formed PDF whose page tree is empty, xref offsets and all.</summary>
-    private static void WriteZeroPagePdf(string path)
-    {
-        var body = new StringBuilder("%PDF-1.4\n");
-        var offsets = new List<int>();
-        void Obj(string content)
-        {
-            offsets.Add(body.Length);
-            body.Append(offsets.Count).Append(" 0 obj\n").Append(content).Append("\nendobj\n");
-        }
-        Obj("<< /Type /Catalog /Pages 2 0 R >>");
-        Obj("<< /Type /Pages /Kids [] /Count 0 >>");
-
-        int xref = body.Length;
-        body.Append("xref\n0 ").Append(offsets.Count + 1).Append('\n');
-        body.Append("0000000000 65535 f \n");
-        foreach (int off in offsets) body.Append(off.ToString("D10")).Append(" 00000 n \n");
-        body.Append("trailer\n<< /Size ").Append(offsets.Count + 1).Append(" /Root 1 0 R >>\nstartxref\n")
-            .Append(xref).Append("\n%%EOF\n");
-        File.WriteAllBytes(path, Encoding.ASCII.GetBytes(body.ToString()));
     }
 
     // ---------- App: startup arguments ----------
@@ -297,7 +279,7 @@ internal static class ContractChecks
     }
 
     /// <summary>Runs work on a fresh STA thread and shuts down the dispatcher it may create, like PrintJob.</summary>
-    private static Task<T> OnStaThreadAsync<T>(Func<T> work)
+    internal static Task<T> OnStaThreadAsync<T>(Func<T> work)
     {
         var tcs = new TaskCompletionSource<T>();
         var thread = new Thread(() =>
@@ -414,7 +396,7 @@ internal static class ContractChecks
         {
             // 1440×1575 pt → 1920×2100 DIP. On a paper larger than that, placement does not
             // shrink the page, and 300 DPI asks for 6000×6562 px (area ~39e6) before the cap.
-            WriteSinglePagePdf(path, 1440, 1575);
+            PdfFixtures.WriteSinglePagePdf(path, 1440, 1575);
             var doc = new PdfDoc(path);
             var paginator = new PdfPrintPaginator(doc, new[] { 0 }, new Size(4000, 4000), PDFtoImage.PdfRotation.Rotate0);
             var (bmpW, bmpH) = await OnStaThreadAsync(() =>
@@ -510,33 +492,6 @@ internal static class ContractChecks
         {
             return new Check(name, false, $"{ex.GetType().Name}: {ex.Message}");
         }
-    }
-
-    /// <summary>One-page PDF whose MediaBox is exactly the given size in points.</summary>
-    private static void WriteSinglePagePdf(string path, int widthPt, int heightPt)
-    {
-        var stream = $"BT /F1 24 Tf 72 72 Td (Big) Tj ET\n";
-        var body = new StringBuilder("%PDF-1.4\n");
-        var offsets = new List<int>();
-        void Obj(string content)
-        {
-            offsets.Add(body.Length);
-            body.Append(offsets.Count).Append(" 0 obj\n").Append(content).Append("\nendobj\n");
-        }
-        Obj("<< /Type /Catalog /Pages 2 0 R >>");
-        Obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-        Obj($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {widthPt} {heightPt}] /Contents 4 0 R " +
-            "/Resources << /Font << /F1 5 0 R >> >> >>");
-        Obj($"<< /Length {Encoding.ASCII.GetByteCount(stream)} >>\nstream\n{stream}endstream");
-        Obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-
-        int xref = body.Length;
-        body.Append("xref\n0 ").Append(offsets.Count + 1).Append('\n');
-        body.Append("0000000000 65535 f \n");
-        foreach (int off in offsets) body.Append(off.ToString("D10")).Append(" 00000 n \n");
-        body.Append("trailer\n<< /Size ").Append(offsets.Count + 1).Append(" /Root 1 0 R >>\nstartxref\n")
-            .Append(xref).Append("\n%%EOF\n");
-        File.WriteAllBytes(path, Encoding.ASCII.GetBytes(body.ToString()));
     }
 
     private static Check PlacePageFits()
