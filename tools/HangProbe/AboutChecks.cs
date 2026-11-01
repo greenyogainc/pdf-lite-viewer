@@ -239,6 +239,10 @@ internal static class AboutChecks
     private static void Click(System.Windows.Controls.Primitives.ButtonBase button) =>
         button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
 
+    /// <summary>Focus moved to <paramref name="element"/>: keyboard focus when the window is active, logical focus when something else holds the foreground.</summary>
+    private static bool HasFocus(Window window, UIElement element) =>
+        element.IsKeyboardFocused || ReferenceEquals(System.Windows.Input.FocusManager.GetFocusedElement(window), element);
+
     private static void CloseQuietly(Window window)
     {
         try { window.Close(); } catch { /* already closed */ }
@@ -424,7 +428,7 @@ internal static class AboutChecks
             bool contact = about.SupportPanel.Visibility == Visibility.Visible
                            && about.AboutPanel.Visibility == Visibility.Collapsed
                            && about.BackBtn.Visibility == Visibility.Visible
-                           && about.SupportNameInput.IsKeyboardFocused;
+                           && HasFocus(about, about.SupportNameInput);
 
             // An empty form: the click reaches SendSupportAsync, which refuses it locally.
             Click(about.SupportSendBtn);
@@ -468,7 +472,7 @@ internal static class AboutChecks
                 Fill(about, who, email, subject, message);
                 await about.SendSupportAsync();
                 var expectedField = target(about);
-                if (!expectedField.IsKeyboardFocused) wrong.Add($"{label}: focus is not on {expectedField.Name}");
+                if (!HasFocus(about, expectedField)) wrong.Add($"{label}: focus is not on {expectedField.Name}");
                 if (about.SupportStatusText.Text != Strings.Get(key)) wrong.Add($"{label}: status '{about.SupportStatusText.Text}', expected the {key} text");
                 if (about.SupportStatusText.Visibility != Visibility.Visible) wrong.Add($"{label}: status is not shown");
             }
@@ -555,7 +559,7 @@ internal static class AboutChecks
             await PumpAsync();
             about.OpenSupportPane();
             await PumpAsync();
-            bool offers = about.SupportAnotherBtn.IsKeyboardFocused && about.SupportForm.Visibility == Visibility.Collapsed;
+            bool offers = HasFocus(about, about.SupportAnotherBtn) && about.SupportForm.Visibility == Visibility.Collapsed;
 
             string statusBefore = about.SupportStatusText.Text;
             await about.SendSupportAsync();
