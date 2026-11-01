@@ -52,6 +52,9 @@ function Invoke-Harness($label, $project, $harnessArgs, [switch]$Last) {
     Write-Host "--- $label : $project $harnessArgs"
     $process = Start-Process dotnet -ArgumentList $coverletArgs -NoNewWindow -PassThru `
         -RedirectStandardOutput $log -RedirectStandardError $err
+    # Reading the handle makes the Process object cache it; without that, ExitCode comes
+    # back empty after WaitForExit(timeout) and every harness looks like it failed.
+    $null = $process.Handle
     # A modal dialog nothing dismisses would otherwise block the run forever, and coverlet
     # only writes its hits when the target exits.
     if (-not $process.WaitForExit($TimeoutMinutes * 60 * 1000)) {
@@ -60,6 +63,7 @@ function Invoke-Harness($label, $project, $harnessArgs, [switch]$Last) {
         throw "$label did not finish within $TimeoutMinutes minutes; see $log"
     }
     $code = $process.ExitCode
+    if ($null -eq $code) { throw "$label finished but its exit code could not be read; see $log" }
     Get-Content $log | Where-Object { $_ -match '^(PASS|FAIL) |^FAIL|probe failed' } | ForEach-Object { Write-Host "    $_" }
     Write-Host "    exit code $code"
     return $code
@@ -77,10 +81,14 @@ if (-not $SkipBuild) {
 }
 
 $fixtures = Join-Path $root "tools\fixtures\*.pdf"
+$startupPdf = Join-Path $root "tools\fixtures\no-outline.pdf"
+# The inner backslash-quotes survive Quote and reach the harness as a quoted path.
+$startupArgs = '{0} --startup-check \"{1}\" --coverage' -f $Pages, $startupPdf
 $failures = @()
 $runs = @(
     @{ Label = "chaptersmoke"; Project = "ChapterSmoke"; Args = $fixtures },
     @{ Label = "about-check"; Project = "HangProbe"; Args = "$Pages --about-check --coverage" },
+    @{ Label = "startup-check"; Project = "HangProbe"; Args = $startupArgs },
     @{ Label = "probe"; Project = "HangProbe"; Args = "$Pages --coverage" }
 )
 for ($i = 0; $i -lt $runs.Count; $i++) {
