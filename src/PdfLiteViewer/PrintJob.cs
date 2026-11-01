@@ -32,7 +32,7 @@ internal static class PrintJob
     /// <summary>The one call that hands a document to the spooler. tools/HangProbe replaces it first thing, so no check can reach a real printer.</summary>
     internal static Action<PrintQueue, PdfPrintPaginator, PrintTicket> Submit = SubmitToSpooler;
 
-    /// <summary>Test seam: tools/HangProbe substitutes a server whose queues it controls. Straight to the real one in production.</summary>
+    /// <summary>Test seam: tools/HangProbe substitutes a server that fails every call. Straight to the real one in production.</summary>
     internal static Func<LocalPrintServer> NewServer = () => new LocalPrintServer();
 
     /// <summary>Test seam for the default-printer lookup. Straight to the real one in production.</summary>
@@ -86,11 +86,10 @@ internal static class PrintJob
     /// </summary>
     internal static Size PaperFor(PrintTicket? ticket)
     {
-        var media = ticket?.PageMediaSize;
-        if (media?.Width is not double w || media.Height is not double h || w < 50 || h < 50)
+        if (ticket?.PageMediaSize is not { Width: double w, Height: double h } || w < 50 || h < 50)
             return FallbackPaper;
 
-        return ticket?.PageOrientation is PageOrientation.Landscape or PageOrientation.ReverseLandscape
+        return ticket.PageOrientation is PageOrientation.Landscape or PageOrientation.ReverseLandscape
             ? new Size(h, w)
             : new Size(w, h);
     }
