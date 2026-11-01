@@ -319,6 +319,7 @@ internal static class Program
         checks.AddRange(await SupportClientChecks.RunAsync());
         checks.AddRange(await AppChecks.RunAsync());
         checks.AddRange(await DocumentChecks.RunAsync());
+        checks.AddRange(await PrintSpoolerChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
