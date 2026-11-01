@@ -164,25 +164,18 @@ public sealed class PdfDoc
     /// </param>
     public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
     {
-        // Fast path: the parse has already been completed; even a torn read here is fine,
-        // because every later reader of the field will see at least this lazy.
-        var lazy = _chaptersLazy;
-        if (lazy is null)
+        // The field is assigned under the gate, so concurrent first callers share one Lazy
+        // and the parse runs at most once.
+        // ct is captured from the first thread that wins the lock: that thread's
+        // ct gets the per-phase checks during the parse, so a "switch documents
+        // quickly" sequence that cancels mid-parse still aborts via the phase checks.
+        // Concurrent later callers observe the cached list once Value returns.
+        Lazy<List<ChapterItem>> lazy;
+        lock (_chaptersGate)
         {
-            // Double-check inside the lock; the field is assigned under the gate so a
-            // racing reader either sees our new Lazy or our predecessor's Lazy — never a
-            // freshly-created one that has yet to do work. The whole point of the lazy is
-            // to ensure the parse runs at most once even with concurrent first callers.
-            // ct is captured from the first thread that wins the lock: that thread's
-            // ct gets the per-phase checks during the parse, so a "switch documents
-            // quickly" sequence that cancels mid-parse still aborts via the phase checks.
-            // Concurrent later callers observe the cached list once Value returns.
-            lock (_chaptersGate)
-            {
-                lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
-                    () => BuildChapters(ct, untitledFallback),
-                    LazyThreadSafetyMode.ExecutionAndPublication);
-            }
+            lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
+                () => BuildChapters(ct, untitledFallback),
+                LazyThreadSafetyMode.ExecutionAndPublication);
         }
 
         ct.ThrowIfCancellationRequested();
@@ -243,8 +236,7 @@ public sealed class PdfDoc
             };
             output.Add(item);
 
-            if (node.Children is { Count: > 0 } children)
-                MapBookmarks(children, item, depth + 1, item.Children, ref order, ct, untitledFallback);
+            MapBookmarks(node.Children, item, depth + 1, item.Children, ref order, ct, untitledFallback);
         }
     }
 
