@@ -318,6 +318,7 @@ internal static class Program
         checks.AddRange(await InputChecks.RunAsync(window, pdf, watch.SettleAsync));
         checks.AddRange(await SupportClientChecks.RunAsync());
         checks.AddRange(await AppChecks.RunAsync());
+        checks.AddRange(await DocumentChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
