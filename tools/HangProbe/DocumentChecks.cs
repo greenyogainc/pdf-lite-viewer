@@ -265,6 +265,18 @@ internal static class DocumentChecks
             var fresh = new PdfDoc(withOutline);
             if (!Throws<OperationCanceledException>(() => fresh.GetChapters(cancelled.Token, Untitled)))
                 wrong.Add("a cancelled first call returned");
+
+            // ...and it must not be remembered: a caller that is still interested parses with its
+            // own token, instead of being handed the first caller's cancellation.
+            try
+            {
+                var retried = fresh.GetChapters(CancellationToken.None, Untitled);
+                if (retried.Count != 2) wrong.Add($"the call after a cancelled first call returned {retried.Count} chapters, expected 2");
+            }
+            catch (OperationCanceledException)
+            {
+                wrong.Add("a cancelled first call poisoned the document: every later call throws OperationCanceledException");
+            }
         }
 
         // Concurrent first callers share one parse.
@@ -277,7 +289,7 @@ internal static class DocumentChecks
         var none = empty.GetChapters(CancellationToken.None, Untitled);
         if (none.Count != 0) wrong.Add($"a document without an outline returned {none.Count} chapters");
         if (!ReferenceEquals(none, empty.GetChapters(CancellationToken.None, Untitled))) wrong.Add("the empty answer was not cached either");
-        return CheckKit.Tally(name, 6, wrong);
+        return CheckKit.Tally(name, 7, wrong);
     }
 
     private static bool Throws<T>(Action action) where T : Exception

@@ -17,10 +17,9 @@ public sealed class PdfDoc
 
     private readonly byte[] _bytes;
     private readonly object _chaptersGate = new();
-    // First-completed parse wins; every other caller (concurrent probe, late sidebar
-    // open, etc.) blocks on .Value and gets the same list. ExecutionAndPublication keeps
-    // a duplicate parse from ever racing the first one.
-    private Lazy<List<ChapterItem>>? _chaptersLazy;
+    // Set only by a parse that ran to the end, so a cancelled or failed one is retried by the
+    // next caller instead of being replayed to every caller after it.
+    private List<ChapterItem>? _chapters;
 
     public string FilePath { get; }
     public int PageCount { get; }
@@ -173,22 +172,15 @@ public sealed class PdfDoc
     /// </param>
     public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
     {
-        // The field is assigned under the gate, so concurrent first callers share one Lazy
-        // and the parse runs at most once.
-        // ct is captured from the first thread that wins the lock: that thread's
-        // ct gets the per-phase checks during the parse, so a "switch documents
-        // quickly" sequence that cancels mid-parse still aborts via the phase checks.
-        // Concurrent later callers observe the cached list once Value returns.
-        Lazy<List<ChapterItem>> lazy;
+        // Concurrent callers queue on the gate and share the first completed parse. The parse
+        // runs under the gate with the token of whichever caller won it, so a "switch documents
+        // quickly" sequence that cancels mid-parse still aborts via BuildChapters' phase
+        // checks. The next caller then parses again with its own token.
         lock (_chaptersGate)
         {
-            lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
-                () => BuildChapters(ct, untitledFallback),
-                LazyThreadSafetyMode.ExecutionAndPublication);
+            ct.ThrowIfCancellationRequested();
+            return _chapters ??= BuildChapters(ct, untitledFallback);
         }
-
-        ct.ThrowIfCancellationRequested();
-        return lazy.Value;
     }
 
     private List<ChapterItem> BuildChapters(CancellationToken ct, string untitledFallback)
