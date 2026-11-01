@@ -56,10 +56,12 @@ public sealed class PdfDoc
         // from separate PDFium calls: pin the invariant here rather than in a layout pass.
         if (sizes.Count != pageCount)
             throw new UnreadablePagesException($"The document reports {pageCount} pages but {sizes.Count} page sizes.");
-        // A PDF whose MediaBox collapses to 0 on either axis is malformed but legal. The
-        // layouts (FitZoom, SizeItems) divide by width and height, so a 0×0 page propagates
-        // NaN/Infinity into the WPF extent pipeline and breaks the viewport. Refuse it here
-        // so the existing "could not open" path reports the malformed file.
+        // A page that is zero or negative on either axis is malformed but legal. PDFium swaps
+        // an empty MediaBox for Letter, so the reachable trigger is a CropBox that is disjoint
+        // from the MediaBox or only touches its edge. The layouts (FitZoom, SizeItems) divide
+        // by width and height, so such a page propagates NaN/Infinity into the WPF extent
+        // pipeline and breaks the viewport. Refuse it here so the existing "could not open"
+        // path reports the malformed file.
         for (int i = 0; i < sizes.Count; i++)
         {
             var (w, h) = sizes[i];
