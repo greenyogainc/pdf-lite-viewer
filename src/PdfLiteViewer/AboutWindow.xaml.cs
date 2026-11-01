@@ -51,7 +51,8 @@ public partial class AboutWindow : Window
         if (!string.IsNullOrEmpty(informational))
             return informational.Split('+')[0];
         var v = assembly.GetName().Version;
-        return v is null ? "?" : $"{v.Major}.{v.Minor}.{v.Build}";
+        // Build is -1 when the assembly version has only two parts.
+        return v is null ? "?" : $"{v.Major}.{v.Minor}.{Math.Max(v.Build, 0)}";
     }
 
     private static string OpensInBrowserTooltip(string url) =>

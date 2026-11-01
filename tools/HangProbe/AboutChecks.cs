@@ -368,6 +368,7 @@ internal static class AboutChecks
             ("informational without metadata", new FakeAssembly("4.5.6", null), "4.5.6"),
             ("empty informational falls back to the assembly version", new FakeAssembly("", new Version(3, 4, 5, 6)), "3.4.5"),
             ("only an assembly version", new FakeAssembly(null, new Version(2, 3, 4, 5)), "2.3.4"),
+            ("a two-part assembly version has no build number", new FakeAssembly(null, new Version(2, 3)), "2.3.0"),
             ("no version at all", new FakeAssembly(null, null), "?"),
         };
         var wrong = new List<string>();
