@@ -134,10 +134,16 @@ internal static class PrintSpoolerChecks
         string note = "";
         await Task.Run(() =>
         {
+            // Disposing a LocalPrintServer does not take it out of service (measured: it still looks
+            // queues up and enumerates them), so a disposed one answers like a live one.
+            var disposed = new LocalPrintServer();
+            disposed.Dispose();
+            using (var gone = PrintJob.ResolveQueue(disposed, "no-such-printer-" + Guid.NewGuid().ToString("N")))
+                if (gone is not null) wrong.Add("a disposed server resolved a made-up name");
+
             // A server whose every call fails: the lookup throws, then so does the enumeration, and
-            // the answer is "no queue" rather than an exception. A disposed LocalPrintServer would
-            // not do for this - it keeps answering - and a healthy machine has no other way to make
-            // PrintServer's non-virtual calls throw, so null stands in for the dead spooler.
+            // the answer is "no queue" rather than an exception. A healthy machine has no other way
+            // to make PrintServer's non-virtual calls throw, so null stands in for the dead spooler.
             if (PrintJob.ResolveQueue(null!, "anything") is not null) wrong.Add("a failing server resolved a queue");
 
             // A live server falls back to walking its queues for a name it cannot look up, and finds nothing.
@@ -150,7 +156,7 @@ internal static class PrintSpoolerChecks
             using var pdf = PrintJob.ResolveQueue(live, PdfQueue);
             if (pdf is null || pdf.FullName != PdfQueue) wrong.Add($"'{PdfQueue}' resolved to '{pdf?.FullName ?? "nothing"}'");
         });
-        return CheckKit.Tally(name, 3, wrong, note.Length == 0 ? null : note);
+        return CheckKit.Tally(name, 4, wrong, note.Length == 0 ? null : note);
     }
 
     private static async Task<Check> NoPrintSystemAsync()

@@ -222,6 +222,7 @@ internal static class AppChecks
                 var tag = window.Language.IetfLanguageTag;
                 var wanted = new CultureInfo(culture).IetfLanguageTag;
                 if (!string.Equals(tag, wanted, StringComparison.OrdinalIgnoreCase)) wrong.Add($"{culture}: Language '{tag}', expected '{wanted}'");
+                window.Close();
             }
         }
         finally
