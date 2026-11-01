@@ -44,17 +44,26 @@ public sealed class PdfDoc
             throw new UnreadablePagesException("The document contains no pages.");
         var sizes = PDFtoImage.Conversion.GetPageSizes(_bytes);
         PageSizes = sizes.Select(s => ((double)s.Width, (double)s.Height)).ToList();
+        RequireConsistentSizes(PageCount, PageSizes);
+    }
+
+    /// <summary>
+    /// Separate from the constructor so tools/HangProbe can reach rejections that PDFium
+    /// itself never produces for a file it opens.
+    /// </summary>
+    internal static void RequireConsistentSizes(int pageCount, IReadOnlyList<(double Width, double Height)> sizes)
+    {
         // Every layout indexes PageSizes by page number up to PageCount - 1, and the two come
         // from separate PDFium calls: pin the invariant here rather than in a layout pass.
-        if (PageSizes.Count != PageCount)
-            throw new UnreadablePagesException($"The document reports {PageCount} pages but {PageSizes.Count} page sizes.");
+        if (sizes.Count != pageCount)
+            throw new UnreadablePagesException($"The document reports {pageCount} pages but {sizes.Count} page sizes.");
         // A PDF whose MediaBox collapses to 0 on either axis is malformed but legal. The
         // layouts (FitZoom, SizeItems) divide by width and height, so a 0×0 page propagates
         // NaN/Infinity into the WPF extent pipeline and breaks the viewport. Refuse it here
         // so the existing "could not open" path reports the malformed file.
-        for (int i = 0; i < PageSizes.Count; i++)
+        for (int i = 0; i < sizes.Count; i++)
         {
-            var (w, h) = PageSizes[i];
+            var (w, h) = sizes[i];
             if (w <= 0 || h <= 0)
                 throw new UnreadablePagesException($"Page {i + 1} has non-positive size ({w:F2} × {h:F2} points).");
         }
@@ -248,7 +257,7 @@ public sealed class PdfDoc
     /// after this returns is safe. An intermediate managed copy would only add a per-render
     /// allocation that WIC then throws away.
     /// </summary>
-    private static BitmapSource ToBitmapSource(SKBitmap bmp)
+    internal static BitmapSource ToBitmapSource(SKBitmap bmp)
     {
         // PDFtoImage hands back whatever format the converter chose; normalize to BGRA so
         // the byte order always matches WPF's Pbgra32. The temp bitmap owns its own pixels,

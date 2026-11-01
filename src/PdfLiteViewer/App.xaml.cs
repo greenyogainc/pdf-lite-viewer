@@ -26,13 +26,7 @@ public partial class App : Application
         // worker that faults) would otherwise terminate the process via UnhandledException
         // with no diagnostic. Logging here gives support something to look at, even if the
         // shutdown that follows is the OS handling a crash that we could not contain.
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-        {
-            if (args.ExceptionObject is Exception ex)
-                LogError(ex);
-            else
-                LogError(new Exception($"Non-Exception throw on background thread: {args.ExceptionObject}"));
-        };
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
         // Tasks that fault and are never observed (.Value, await, or Exception) escalate
         // to process termination on .NET 10. Subscribe and observe: log everything we see
@@ -44,6 +38,18 @@ public partial class App : Application
         };
 
         base.OnStartup(e);
+    }
+
+    /// <summary>
+    /// A named method rather than a lambda so tools/HangProbe can call it: a real unhandled
+    /// exception on another thread would end the probe and lose its coverage data.
+    /// </summary>
+    internal static void OnUnhandledException(object? sender, UnhandledExceptionEventArgs args)
+    {
+        if (args.ExceptionObject is Exception ex)
+            LogError(ex);
+        else
+            LogError(new Exception($"Non-Exception throw on background thread: {args.ExceptionObject}"));
     }
 
     /// <summary>
