@@ -56,42 +56,47 @@ public sealed class AppSupportClient(HttpClient http)
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
         try
         {
-            using var body = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
-            using var outgoing = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = body };
-            using var response = await http.SendAsync(outgoing, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            // Bound the acknowledgment; support never returns documents or unbounded content.
-            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
-            using var buffer = new MemoryStream();
-            var chunk = new byte[1024];
-            int read;
-            while ((read = await stream.ReadAsync(chunk, timeout.Token).ConfigureAwait(false)) > 0)
-            {
-                if (buffer.Length + read > 8192) return new(AppSupportStatus.Failed, request.RequestId);
-                buffer.Write(chunk, 0, read);
-            }
-            using var json = JsonDocument.Parse(buffer.ToArray());
-            var root = json.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return new(AppSupportStatus.Failed, request.RequestId);
-            bool acknowledged = response.StatusCode == HttpStatusCode.OK &&
-                root.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.True &&
-                root.TryGetProperty("requestId", out var id) && id.ValueKind == JsonValueKind.String &&
-                id.GetString() == request.RequestId;
-            if (acknowledged) return new(AppSupportStatus.Success, request.RequestId);
-            string? error = root.TryGetProperty("error", out var code) && code.ValueKind == JsonValueKind.String ? code.GetString() : null;
-            var status = ((int)response.StatusCode, error) switch
-            {
-                (400, "invalid-email") => AppSupportStatus.InvalidEmail,
-                (400, "invalid-request") => AppSupportStatus.InvalidRequest,
-                (409, "request-in-progress") => AppSupportStatus.InProgress,
-                (409, "request-conflict") => AppSupportStatus.Conflict,
-                (429, "rate-limited") => AppSupportStatus.RateLimited,
-                _ => AppSupportStatus.Failed
-            };
-            return new(status, request.RequestId);
+            return await ExchangeAsync(request, timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(AppSupportStatus.Failed, request.RequestId); }
         catch (HttpRequestException) { return new(AppSupportStatus.Failed, request.RequestId); }
         catch (JsonException) { return new(AppSupportStatus.Failed, request.RequestId); }
         catch (IOException) { return new(AppSupportStatus.Failed, request.RequestId); }
+    }
+
+    private async Task<AppSupportResult> ExchangeAsync(AppSupportRequest request, CancellationToken ct)
+    {
+        using var body = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json");
+        using var outgoing = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = body };
+        using var response = await http.SendAsync(outgoing, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        // Bound the acknowledgment; support never returns documents or unbounded content.
+        await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[1024];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0)
+        {
+            if (buffer.Length + read > 8192) return new(AppSupportStatus.Failed, request.RequestId);
+            buffer.Write(chunk, 0, read);
+        }
+        using var json = JsonDocument.Parse(buffer.ToArray());
+        var root = json.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return new(AppSupportStatus.Failed, request.RequestId);
+        bool acknowledged = response.StatusCode == HttpStatusCode.OK &&
+            root.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.True &&
+            root.TryGetProperty("requestId", out var id) && id.ValueKind == JsonValueKind.String &&
+            id.GetString() == request.RequestId;
+        if (acknowledged) return new(AppSupportStatus.Success, request.RequestId);
+        string? error = root.TryGetProperty("error", out var code) && code.ValueKind == JsonValueKind.String ? code.GetString() : null;
+        var status = ((int)response.StatusCode, error) switch
+        {
+            (400, "invalid-email") => AppSupportStatus.InvalidEmail,
+            (400, "invalid-request") => AppSupportStatus.InvalidRequest,
+            (409, "request-in-progress") => AppSupportStatus.InProgress,
+            (409, "request-conflict") => AppSupportStatus.Conflict,
+            (429, "rate-limited") => AppSupportStatus.RateLimited,
+            _ => AppSupportStatus.Failed
+        };
+        return new(status, request.RequestId);
     }
 }
