@@ -134,10 +134,11 @@ internal static class PrintSpoolerChecks
         string note = "";
         await Task.Run(() =>
         {
-            // A server that has been disposed can neither look the queue up nor enumerate.
-            var disposed = new LocalPrintServer();
-            disposed.Dispose();
-            if (PrintJob.ResolveQueue(disposed, "anything") is not null) wrong.Add("a disposed server resolved a queue");
+            // A server whose every call fails: the lookup throws, then so does the enumeration, and
+            // the answer is "no queue" rather than an exception. A disposed LocalPrintServer would
+            // not do for this - it keeps answering - and a healthy machine has no other way to make
+            // PrintServer's non-virtual calls throw, so null stands in for the dead spooler.
+            if (PrintJob.ResolveQueue(null!, "anything") is not null) wrong.Add("a failing server resolved a queue");
 
             // A live server falls back to walking its queues for a name it cannot look up, and finds nothing.
             using var live = new LocalPrintServer();
