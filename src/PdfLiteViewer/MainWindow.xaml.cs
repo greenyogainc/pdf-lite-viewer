@@ -1158,7 +1158,8 @@ public partial class MainWindow : Window
         return last < 0 ? (_currentPage, _currentPage) : (first, last);
     }
 
-    private async Task UpdateRenderedPagesAsync()
+    /// <summary>Internal so tools/HangProbe can drive the render races directly.</summary>
+    internal async Task UpdateRenderedPagesAsync()
     {
         if (_doc is null) return;
 
