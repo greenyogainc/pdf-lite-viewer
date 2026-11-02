@@ -1,3 +1,4 @@
+using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -102,6 +103,43 @@ internal static partial class WindowStateChecks
             CloseQuietly(tiny);
         }
         return CheckKit.Tally(name, 2, wrong, note);
+    }
+
+    // ---------- jumping in a document of mixed page sizes ----------
+
+    /// <summary>
+    /// The panel estimates the height of pages it has not realized, so with pages of different
+    /// sizes the first guess at a far page lands somewhere else and ScrollToPage has to correct it.
+    /// A short last page cannot be scrolled to the top at all. The jump must still end with
+    /// that page in view, and with the correction loop finished (the call returns).
+    /// </summary>
+    private static async Task<Check> ShortLastPageAsync(Docs docs, string name)
+    {
+        var wrong = new List<string>();
+        var path = Path.Combine(docs.Folder, "short-last.pdf");
+        PdfFixtures.WriteMixedSizePdf(path, Enumerable.Repeat((612, 792), 60).Concat(new[] { (612, 100) }).ToArray());
+        var window = await ShownWindowAsync();
+        try
+        {
+            window.SetMode(ViewMode.Continuous);
+            await OpenAndRenderAsync(window, path);
+            foreach (int target in new[] { 40, 60, 10, 60 })
+            {
+                window.GoToPage(target);
+                await Task.Delay(200);
+                await Pump(window);
+                var container = window.PagesHost.ItemContainerGenerator.ContainerFromIndex(target) as FrameworkElement;
+                if (container is null) { wrong.Add($"page {target + 1} has no realized container after the jump"); continue; }
+                double top = container.TransformToAncestor(window.Scroller).Transform(default).Y;
+                if (top + container.ActualHeight <= 0 || top >= window.Scroller.ViewportHeight)
+                    wrong.Add($"after jumping to page {target + 1} it sits at y={top:F0}, outside the {window.Scroller.ViewportHeight:F0}px viewport");
+            }
+        }
+        finally
+        {
+            CloseQuietly(window);
+        }
+        return CheckKit.Tally(name, 4, wrong);
     }
 
     // ---------- a viewport nobody can see ----------

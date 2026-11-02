@@ -89,6 +89,7 @@ internal static partial class WindowStateChecks
             await Step("window: continuous scrolling keeps the page within it, and a hidden window falls back to the current page", name => HiddenViewportAsync(docs, name));
             await Step("window: with nothing laid out, the continuous-mode helpers fall back instead of failing", name => NoLayoutFallbacksAsync(docs, name));
             await Step("window: a strip page stays inside the pixel budget and a speck is not rendered", name => PixelBudgetsAsync(docs, name));
+            await Step("window: a jump in a document of mixed page sizes ends with the page in view", name => ShortLastPageAsync(docs, name));
             await Step("window: a page PDFium cannot render is logged and the viewer lives", name => RenderFailureAsync(docs, name));
             await Step("window: a cancelled render never leaves a bitmap of the old orientation", name => RenderCancellationAsync(docs, name));
             await Step("window: Ctrl+O and the Open button show the file dialog; cancel opens nothing, a path opens it", name => OpenDialogsAsync(docs, name));
