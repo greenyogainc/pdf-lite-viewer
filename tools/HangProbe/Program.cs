@@ -33,8 +33,10 @@ internal static class Program
     [STAThread]
     internal static int Main(string[] args)
     {
-        // First statement, before any window exists: this machine's default printer is a
-        // physical one, and the preview window selects it on its own.
+        var realSubmit = PrintJob.Submit;
+
+        // Before any window exists: this machine's default printer is a physical one, and the
+        // preview window selects it on its own.
         PrintJob.Submit = (_, _, _) =>
             throw new InvalidOperationException("HangProbe must never reach a real print queue.");
 
@@ -69,6 +71,8 @@ internal static class Program
                     _exitCode = ReportChecks(await StartupChecksAsync(args));
                 else if (args.Contains("--window-check"))
                     _exitCode = ReportChecks(await OnlyAsync(WindowStateChecks.RunAsync));
+                else if (args.Contains("--real-print-to-pdf"))
+                    _exitCode = ReportChecks(await RealPrintCheck.RunAsync(realSubmit));
                 else if (args.Contains("--print-check"))
                     _exitCode = ReportChecks(await OnlyAsync(PrintChecks.RunAsync));
                 else _exitCode = await RunAsync(pages, pdf);

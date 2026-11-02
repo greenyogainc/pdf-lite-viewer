@@ -137,15 +137,15 @@ internal static partial class WindowStateChecks
             Click(ButtonNamed(window, Strings.Get("Print")));
             if (!dialog.Satisfied) wrong.Add("no error dialog appeared");
             else if (!dialog.Text.Contains(reason)) wrong.Add($"the dialog does not carry the reason ('{reason}'): {dialog.Text}");
+            // A window that was built but never closed would keep the app alive on its own.
+            int orphans = Application.Current.Windows.OfType<PrintPreviewWindow>().Count();
+            if (orphans != 0) wrong.Add($"{orphans} preview window(s) left registered with the app");
         }
         finally
         {
-            // The preview that could not take its owner was built anyway and is still registered with the app.
-            foreach (var orphan in Application.Current.Windows.OfType<PrintPreviewWindow>().Where(w => !w.IsVisible).ToList())
-                CloseQuietly(orphan);
             CloseQuietly(window);
         }
-        return CheckKit.Tally(name, 1, wrong);
+        return CheckKit.Tally(name, 2, wrong);
     }
 
     // ---------- keys ----------

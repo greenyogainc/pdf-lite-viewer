@@ -606,7 +606,7 @@ public partial class MainWindow : Window
                 // Still refresh the box: "0" or "99999" clamped to the current page must
                 // not leave the stale typed value standing next to the page count.
                 PageBox.Text = (page + 1).ToString();
-                if (syncChapters) SyncChapterSelection();
+                if (syncChapters) SyncChapterSelection(_doc);
                 return;
             }
             _currentPage = page;
@@ -614,7 +614,7 @@ public partial class MainWindow : Window
         }
 
         if (syncChapters)
-            SyncChapterSelection();
+            SyncChapterSelection(_doc);
     }
 
     private void StepPage(int direction)
@@ -752,7 +752,7 @@ public partial class MainWindow : Window
             ChapterTree.ItemsSource = roots;
             _chapterState = roots.Count == 0 ? ChapterLoadState.Empty : ChapterLoadState.Loaded;
             ShowChapterState(_chapterState);
-            SyncChapterSelection();
+            SyncChapterSelection(doc);
         }
         catch (OperationCanceledException)
         {
@@ -798,11 +798,11 @@ public partial class MainWindow : Window
     /// on that page is kept so tree clicks don't flash away; otherwise Depth then
     /// SourceOrder win. Facing mode uses <see cref="GetChapterSyncPage"/>.
     /// </summary>
-    private void SyncChapterSelection()
+    private void SyncChapterSelection(PdfDoc doc)
     {
-        if (_doc is null || _navigableChapters.Count == 0) return;
+        if (_navigableChapters.Count == 0) return;
 
-        int syncPage = GetChapterSyncPage(_doc);
+        int syncPage = GetChapterSyncPage(doc);
 
         // Binary search: last entry with PageIndex <= syncPage (list is sorted by
         // PageIndex, Depth, SourceOrder — "greatest page, deepest/later node").
@@ -963,7 +963,18 @@ public partial class MainWindow : Window
         if (_doc is null) return;
         try
         {
-            new PrintPreviewWindow(_doc, _currentPage) { Owner = this }.ShowDialog();
+            var preview = new PrintPreviewWindow(_doc, _currentPage);
+            // Closed however this goes: a window that was built but never closed keeps the app
+            // alive after the main window has gone.
+            try
+            {
+                preview.Owner = this;
+                preview.ShowDialog();
+            }
+            finally
+            {
+                preview.Close();
+            }
         }
         catch (Exception ex)
         {
@@ -1105,7 +1116,7 @@ public partial class MainWindow : Window
         {
             _currentPage = top;
             PageBox.Text = (top + 1).ToString();
-            SyncChapterSelection();
+            SyncChapterSelection(_doc);
         }
 
         ScheduleRender();

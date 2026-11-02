@@ -125,9 +125,12 @@ internal sealed class DialogDismisser : IDisposable
     private const int FillGiveUpMs = 10_000;
     private const int ReadFailureLimit = 20;
 
-    // The file dialog's file-name box is a ComboBoxEx32 with this control ID; the Edit sits
+    // An Open dialog's file-name box is a ComboBoxEx32 with this control ID; the Edit sits
     // two levels down (ComboBoxEx32 > ComboBox > Edit).
     private const int FileNameComboId = 0x047C;
+    // A Save dialog nests its file-name Edit deep inside a DirectUI host, under this ID. The
+    // address toolbar has the same ID, so the class has to match too.
+    private const int SaveFileNameEditId = 1001;
     // MessageBox's message text is the static control with ID -1.
     private const int MessageTextId = 0xFFFF;
 
@@ -350,13 +353,31 @@ internal sealed class DialogDismisser : IDisposable
     /// <summary>Sets the file-name box to <paramref name="path"/>; false while the box does not exist or did not take it.</summary>
     private static bool TryFillPath(IntPtr dialog, string path)
     {
-        var comboEx = Native.GetDlgItem(dialog, FileNameComboId);
-        if (comboEx == IntPtr.Zero) return false;
-        var combo = Native.FindWindowEx(comboEx, IntPtr.Zero, "ComboBox", null);
-        if (combo == IntPtr.Zero) return false;
-        var edit = Native.FindWindowEx(combo, IntPtr.Zero, "Edit", null);
+        var edit = FileNameEdit(dialog);
         if (edit == IntPtr.Zero) return false;
         return Native.SetText(edit, path) && Native.ReadText(edit) == path;
+    }
+
+    private static IntPtr FileNameEdit(IntPtr dialog)
+    {
+        var comboEx = Native.GetDlgItem(dialog, FileNameComboId);
+        if (comboEx != IntPtr.Zero)
+        {
+            var combo = Native.FindWindowEx(comboEx, IntPtr.Zero, "ComboBox", null);
+            return combo == IntPtr.Zero ? IntPtr.Zero : Native.FindWindowEx(combo, IntPtr.Zero, "Edit", null);
+        }
+
+        var found = IntPtr.Zero;
+        Native.EnumChildWindows(dialog, (child, _) =>
+        {
+            var className = new StringBuilder(16);
+            if (Native.GetDlgCtrlID(child) != SaveFileNameEditId ||
+                Native.GetClassName(child, className, className.Capacity) == 0 || className.ToString() != "Edit")
+                return true;
+            found = child;
+            return false;
+        }, IntPtr.Zero);
+        return found;
     }
 
     private static class Native
@@ -373,6 +394,12 @@ internal sealed class DialogDismisser : IDisposable
 
         [DllImport("user32.dll")]
         public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern bool EnumChildWindows(IntPtr parent, EnumWindowsProc callback, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern int GetDlgCtrlID(IntPtr hwnd);
 
         [DllImport("user32.dll")]
         public static extern bool IsWindowVisible(IntPtr hwnd);

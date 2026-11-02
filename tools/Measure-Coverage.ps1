@@ -89,6 +89,8 @@ $runs = @(
     @{ Label = "chaptersmoke"; Project = "ChapterSmoke"; Args = $fixtures },
     @{ Label = "about-check"; Project = "HangProbe"; Args = "$Pages --about-check --coverage" },
     @{ Label = "startup-check"; Project = "HangProbe"; Args = $startupArgs },
+    # The only run that reaches the real spooler call, and only for Microsoft Print to PDF.
+    @{ Label = "real-print"; Project = "HangProbe"; Args = "$Pages --real-print-to-pdf --coverage" },
     @{ Label = "probe"; Project = "HangProbe"; Args = "$Pages --coverage" }
 )
 for ($i = 0; $i -lt $runs.Count; $i++) {

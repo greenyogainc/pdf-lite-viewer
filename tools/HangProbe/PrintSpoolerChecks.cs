@@ -34,6 +34,8 @@ internal static class PrintSpoolerChecks
             {
                 CheckKit.Run("spooler: paper size from a print ticket", PaperFromTickets),
                 await CheckKit.RunAsync("spooler: resolving a queue", ResolveQueueAsync),
+                CheckKit.Run("spooler: a queue found by walking the list", PickQueueTable),
+                CheckKit.Run("spooler: the job's ticket falls back in order", TicketFallback),
                 await CheckKit.RunAsync("spooler: no print system at all", NoPrintSystemAsync),
                 await CheckKit.RunAsync("spooler: no default printer", NoDefaultPrinterAsync),
                 await CheckKit.RunAsync("spooler: an unavailable queue faults the job", () => UnavailableQueueAsync(At)),
@@ -157,6 +159,50 @@ internal static class PrintSpoolerChecks
             if (pdf is null || pdf.FullName != PdfQueue) wrong.Add($"'{PdfQueue}' resolved to '{pdf?.FullName ?? "nothing"}'");
         });
         return CheckKit.Tally(name, 4, wrong, note.Length == 0 ? null : note);
+    }
+
+    private sealed class FakeQueue(string name) : IDisposable
+    {
+        public string Name { get; } = name;
+        public bool Disposed { get; private set; }
+        public void Dispose() => Disposed = true;
+    }
+
+    /// <summary>
+    /// A print-server connection is the only thing that reaches this fallback, and this machine
+    /// has none: keep the first match open, and release every other queue's spooler handle.
+    /// </summary>
+    private static Check PickQueueTable()
+    {
+        const string name = "spooler: a queue found by walking the list";
+        var wrong = new List<string>();
+
+        FakeQueue other = new("other"), first = new("wanted"), second = new("wanted"), last = new("last");
+        var match = PrintJob.PickQueue(new[] { other, first, second, last }, q => q.Name, "wanted");
+        if (!ReferenceEquals(match, first)) wrong.Add("the first matching queue was not the one returned");
+        if (first.Disposed) wrong.Add("the returned queue was disposed");
+        if (!other.Disposed || !second.Disposed || !last.Disposed) wrong.Add("a queue that was not returned stayed open");
+
+        var unmatched = new FakeQueue("unmatched");
+        if (PrintJob.PickQueue(new[] { unmatched }, q => q.Name, "wanted") is not null) wrong.Add("a wrong name matched");
+        if (!unmatched.Disposed) wrong.Add("an unmatched queue stayed open");
+        if (PrintJob.PickQueue(Array.Empty<FakeQueue>(), q => q.Name, "wanted") is not null) wrong.Add("an empty list matched");
+
+        return CheckKit.Tally(name, 5, wrong);
+    }
+
+    private static Check TicketFallback()
+    {
+        const string name = "spooler: the job's ticket falls back in order";
+        var wrong = new List<string>();
+        PrintTicket user = new(), queueDefault = new();
+
+        var chosen = PrintJob.FirstTicket(() => user, () => throw new InvalidOperationException("the default ticket was read"));
+        if (!ReferenceEquals(chosen, user)) wrong.Add("the user ticket was not preferred");
+        if (!ReferenceEquals(PrintJob.FirstTicket(() => null, () => queueDefault), queueDefault)) wrong.Add("no fallback to the queue's default");
+        if (PrintJob.FirstTicket(() => null, () => null) is null) wrong.Add("no blank ticket when the queue has neither");
+
+        return CheckKit.Tally(name, 3, wrong);
     }
 
     private static async Task<Check> NoPrintSystemAsync()

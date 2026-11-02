@@ -114,7 +114,7 @@ internal static class PrintJob
             using var queue = ResolveQueue(server, queueName)
                 ?? throw new InvalidOperationException($"Printer '{queueName}' is unavailable.");
 
-            var ticket = queue.UserPrintTicket ?? queue.DefaultPrintTicket ?? new PrintTicket();
+            var ticket = FirstTicket(() => queue.UserPrintTicket, () => queue.DefaultPrintTicket);
             ticket.CopyCount = copies;
             if (grayscale) ticket.OutputColor = OutputColor.Grayscale;
             if (draft) ticket.OutputQuality = OutputQuality.Draft;
@@ -157,16 +157,31 @@ internal static class PrintJob
         {
             // The collection itself is left to the finalizer here: disposing it may dispose
             // the match being handed back, and this path only runs when GetPrintQueue failed.
-            PrintQueue? match = null;
-            foreach (var queue in server.GetPrintQueues(QueueTypes))
-            {
-                if (match is null && queue.FullName == name) match = queue;
-                else queue.Dispose();
-            }
-            return match;
+            return PickQueue(server.GetPrintQueues(QueueTypes), queue => queue.FullName, name);
         }
         catch { return null; }
     }
+
+    /// <summary>
+    /// The first queue called <paramref name="name"/>, with every other one disposed. Only a
+    /// print-server connection ever gets here, so it takes the queues as data: tools/HangProbe
+    /// can check it on a machine that has no such connection.
+    /// </summary>
+    internal static T? PickQueue<T>(IEnumerable<T> queues, Func<T, string> nameOf, string name)
+        where T : class, IDisposable
+    {
+        T? match = null;
+        foreach (var queue in queues)
+        {
+            if (match is null && nameOf(queue) == name) match = queue;
+            else queue.Dispose();
+        }
+        return match;
+    }
+
+    /// <summary>The queue's user ticket, else its default one, else a blank one.</summary>
+    internal static PrintTicket FirstTicket(Func<PrintTicket?> user, Func<PrintTicket?> queueDefault) =>
+        user() ?? queueDefault() ?? new PrintTicket();
 
     /// <summary>
     /// XPS serialization needs an STA thread, and every visual it serializes must belong to
