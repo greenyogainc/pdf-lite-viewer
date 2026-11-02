@@ -69,6 +69,8 @@ internal static class Program
                     _exitCode = ReportChecks(await StartupChecksAsync(args));
                 else if (args.Contains("--window-check"))
                     _exitCode = ReportChecks(await OnlyAsync(WindowStateChecks.RunAsync));
+                else if (args.Contains("--print-check"))
+                    _exitCode = ReportChecks(await OnlyAsync(PrintChecks.RunAsync));
                 else _exitCode = await RunAsync(pages, pdf);
             }
             catch (Exception ex)
@@ -323,6 +325,7 @@ internal static class Program
         checks.AddRange(await DocumentChecks.RunAsync());
         checks.AddRange(await PrintSpoolerChecks.RunAsync());
         checks.AddRange(await WindowStateChecks.RunAsync());
+        checks.AddRange(await PrintChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
@@ -468,6 +471,7 @@ internal static class Program
 
     private static TimeSpan Ms(int ms) => TimeSpan.FromMilliseconds(ms);
 
+    /// <summary>Runs one check group on its own (--window-check, --print-check), for working on that group without the stall scenarios.</summary>
     private static Task<List<Check>> OnlyAsync(Func<Task<List<Check>>> group) => group();
 
     /// <summary>Checks every mode ends with: the print guard is still in place, and no dialog went unplanned.</summary>
