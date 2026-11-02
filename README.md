@@ -52,6 +52,8 @@ About links open your default browser when selected.
 
 ## What's new
 
+- **1.0.19** (2026-11-02) - Pages now re-render at the new scale when a window moves between monitors with different scaling. 1.0.16 added this re-render, but it never ran because the app did not declare per-monitor DPI awareness, so Windows stretched the window instead. This has not yet been tested on physically mixed monitors. Pressing Enter in the page box with anything other than a page number restores the current page. A print preview that fails to open no longer keeps the app running after the main window closes.
+
 - **1.0.18** (2026-10-23) - Contact support now uses a native Windows form with clear privacy details, draft-preserving retries and a delivery reference. Support sends directly through the dedicated app-support API; the embedded support browser and its runtime dependency have been removed.
 
 - **1.0.17** (2026-09-23) — Bug fixes from another full-codebase review: PDFs whose page
