@@ -640,10 +640,19 @@ public partial class MainWindow : Window
 
     private void PageBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && int.TryParse(PageBox.Text, out int p))
+        if (e.Key != Key.Enter) return;
+
+        if (int.TryParse(PageBox.Text, out int p))
         {
             GoToPage(p - 1);
             Scroller.Focus();
+            e.Handled = true;
+        }
+        else if (_doc is not null)
+        {
+            // Text that cannot be a page must not stand next to the page count (GoToPage
+            // refreshes the box for the same reason). With no document there is no page to show.
+            PageBox.Text = (_currentPage + 1).ToString();
             e.Handled = true;
         }
     }
