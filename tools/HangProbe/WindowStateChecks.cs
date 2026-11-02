@@ -58,7 +58,7 @@ internal static partial class WindowStateChecks
         }
     }
 
-    public static async Task<List<Check>> RunAsync(string stressPdf, Func<Task> settle)
+    public static async Task<List<Check>> RunAsync()
     {
         var folder = Path.Combine(Path.GetTempPath(), $"hangprobe-windows-{Guid.NewGuid():N}");
         Directory.CreateDirectory(folder);
@@ -67,7 +67,36 @@ internal static partial class WindowStateChecks
         try
         {
             var docs = new Docs(folder);
-            checks.AddRange(await CheckKit.RunManyAsync("window: page box Enter", () => PageBoxAsync(docs)));
+            async Task Step(string name, Func<string, Task<Check>> body) => checks.Add(await CheckKit.RunAsync(name, () => body(name)));
+
+            await Step("window: the page box puts back a page after text that is not one", name => PageBoxAsync(docs, name));
+            await Step("window: with no document, never shown, every command is a no-op", name => NoDocumentAsync(false, docs, name));
+            await Step("window: with no document, shown, every command is a no-op", name => NoDocumentAsync(true, docs, name));
+            await Step("window: a DPI change re-runs the layout only when there is a document", name => DpiAsync(docs, name));
+            await Step("window: a file that is not there is reported with the system's reason", name => MissingFileAsync(docs, name));
+            await Step("window: a document without pages is reported in the user's language", name => ZeroPagesAsync(docs, name));
+            await Step("window: a file another program holds open is reported, and the open document stays", name => LockedFileAsync(docs, name));
+            await Step("window: an open that was overtaken leaves the newer one in charge", name => OvertakenOpensAsync(docs, name));
+            await Step("window: a failure while applying a document falls back to the empty state", name => LastResortCatchAsync(docs, name));
+            await Step("window: the chapter pane shows empty, loaded, nothing navigable and failed, and keeps its state when closed", name => PaneStatesAsync(docs, name));
+            await Step("window: a chapter load that finishes after the document was replaced is dropped", name => StaleLoadAsync(docs, name, failing: false));
+            await Step("window: a chapter load that fails after the document was replaced is dropped", name => StaleLoadAsync(docs, name, failing: true));
+            await Step("window: a chapter load in flight when the document changes ends quietly", name => SupersededLoadAsync(docs, name));
+            await Step("window: with no bookmark before page 2, page 1 has no active chapter in any mode", name => NamedDestinationsAsync(docs, name));
+            await Step("window: nested chapters expand their parents and the sidebar finds the active row", name => NestedChaptersAsync(docs, name));
+            await Step("window: a bookmark that goes nowhere selects without navigating", name => NonNavigableChaptersAsync(docs, name));
+            await Step("window: a strip page stays inside the pixel budget and a speck is not rendered", name => PixelBudgetsAsync(docs, name));
+            await Step("window: a page PDFium cannot render is logged and the viewer lives", name => RenderFailureAsync(docs, name));
+            await Step("window: a cancelled render never leaves a bitmap of the old orientation", name => RenderCancellationAsync(docs, name));
+            await Step("window: Ctrl+O and the Open button show the file dialog; cancel opens nothing, a path opens it", name => OpenDialogsAsync(docs, name));
+            await Step("window: F1, Ctrl+P and their buttons open the About and print preview windows modally", name => ModalWindowsAsync(docs, name));
+            await Step("window: a print preview that cannot be shown is reported, not thrown", name => PreviewFailureAsync(docs, name));
+            await Step("window: shortcuts without their modifier, and keys typed into the page box or tree, do nothing", name => KeysThatMustNotFireAsync(docs, name));
+            await Step("window: with the viewport focused, keys scroll when there is room and turn pages when there is not", name => ScrollerKeysAsync(docs, name));
+            await Step("window: the wheel zooms with Control, turns fitted pages and otherwise scrolls", name => WheelMatrixAsync(docs, name));
+            await Step("window: facing mode steps by spread from the cover to the end and back", name => FacingStepsAsync(docs, name));
+            await Step("window: fullscreen with the pane closed and a fixed zoom changes neither", name => FullscreenVariantsAsync(docs, name));
+            await Step("window: dropping text or non-PDF files does nothing, and the first PDF in a mixed list opens", name => DragVariantsAsync(docs, name));
         }
         catch (Exception ex)
         {
@@ -164,9 +193,8 @@ internal static partial class WindowStateChecks
     /// GoToPage already refreshes a number that clamps. With no document there is no page to
     /// put back, so the key is left alone.
     /// </summary>
-    private static async Task<IEnumerable<Check>> PageBoxAsync(Docs docs)
+    private static async Task<Check> PageBoxAsync(Docs docs, string name)
     {
-        const string name = "window: the page box puts back a page after text that is not one";
         var wrong = new List<string>();
         var window = await ShownWindowAsync();
         try
@@ -214,6 +242,6 @@ internal static partial class WindowStateChecks
         {
             CloseQuietly(empty);
         }
-        return new[] { CheckKit.Tally(name, 8, wrong) };
+        return CheckKit.Tally(name, 8, wrong);
     }
 }

@@ -68,7 +68,7 @@ internal static class Program
                 else if (args.Contains("--startup-check"))
                     _exitCode = ReportChecks(await StartupChecksAsync(args));
                 else if (args.Contains("--window-check"))
-                    _exitCode = ReportChecks(await OnlyAsync(settle => WindowStateChecks.RunAsync(pdf, settle)));
+                    _exitCode = ReportChecks(await OnlyAsync(WindowStateChecks.RunAsync));
                 else _exitCode = await RunAsync(pages, pdf);
             }
             catch (Exception ex)
@@ -322,7 +322,7 @@ internal static class Program
         checks.AddRange(await AppChecks.RunAsync());
         checks.AddRange(await DocumentChecks.RunAsync());
         checks.AddRange(await PrintSpoolerChecks.RunAsync());
-        checks.AddRange(await WindowStateChecks.RunAsync(pdf, watch.SettleAsync));
+        checks.AddRange(await WindowStateChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
@@ -468,12 +468,7 @@ internal static class Program
 
     private static TimeSpan Ms(int ms) => TimeSpan.FromMilliseconds(ms);
 
-    /// <summary>Runs one check group on its own (--window-check, --print-check), for working on that group without the stall scenarios.</summary>
-    private static async Task<List<Check>> OnlyAsync(Func<Func<Task>, Task<List<Check>>> group)
-    {
-        using var watch = new UiWatchdog(Dispatcher.CurrentDispatcher);
-        return await group(watch.SettleAsync);
-    }
+    private static Task<List<Check>> OnlyAsync(Func<Task<List<Check>>> group) => group();
 
     /// <summary>Checks every mode ends with: the print guard is still in place, and no dialog went unplanned.</summary>
     private static void AddFinalChecks(List<Check> checks)
@@ -537,7 +532,7 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("checks");
         Console.WriteLine(new string('-', 88));
-        int failed = PrintChecks(checks);
+        int failed = PrintCheckLines(checks);
 
         Console.WriteLine();
         Console.WriteLine(failed == 0
@@ -547,7 +542,7 @@ internal static class Program
     }
 
     /// <summary>Prints one line per check and returns how many failed.</summary>
-    private static int PrintChecks(IEnumerable<Check> checks)
+    private static int PrintCheckLines(IEnumerable<Check> checks)
     {
         int failed = 0;
         foreach (var c in checks)
@@ -582,7 +577,7 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("layout checks");
         Console.WriteLine(new string('-', 88));
-        failed += PrintChecks(checks);
+        failed += PrintCheckLines(checks);
 
         int total = results.Count + checks.Count;
         Console.WriteLine();

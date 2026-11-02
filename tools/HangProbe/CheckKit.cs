@@ -31,7 +31,7 @@ internal static class CheckKit
     /// <summary>One check for a table: it passes when no case came out wrong, and lists the wrong ones otherwise.</summary>
     public static Check Tally(string name, int cases, IReadOnlyCollection<string> wrong, string? note = null) =>
         new(name, wrong.Count == 0,
-            wrong.Count == 0 ? $"{cases} cases verified" + (note is null ? "" : $"; {note}") : string.Join("; ", wrong));
+            wrong.Count == 0 ? $"{cases} case{(cases == 1 ? "" : "s")} verified" + (note is null ? "" : $"; {note}") : string.Join("; ", wrong));
 
     private static Check Threw(string name, Exception ex) => new(name, false, $"threw {ex.GetType().Name}: {ex.Message}");
 }
