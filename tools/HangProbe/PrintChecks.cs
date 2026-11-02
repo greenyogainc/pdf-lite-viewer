@@ -679,13 +679,14 @@ internal static class PrintChecks
         // loaded; that is measured here rather than assumed.
         long mark = ThreadPool.CompletedWorkItemCount;
         var early = Build(doc);
+        int printers;
         try
         {
             WaitForPoolWork(mark);
             early.Window.Show();
             bool loadedAtShow = early.Window.IsLoaded;
             await Poll.UntilAsync(() => early.Window.PrinterBox.Items.Count > 0 || early.Window.IsLoaded && early.Window.PageImage.Source is not null, TimeSpan.FromSeconds(10));
-            int printers = early.Window.PrinterBox.Items.Count;
+            printers = early.Window.PrinterBox.Items.Count;
             if (printers > 0 && early.Window.PrinterBox.SelectedItem is null) wrong.Add("printers were found but none was selected");
             if (early.Jobs != 0) wrong.Add("a job ran");
             note = $"Show() returned with IsLoaded={loadedAtShow}" + (printers == 0 ? "; this machine lists no printers" : $"; {printers} printer(s) listed");
@@ -694,6 +695,7 @@ internal static class PrintChecks
         {
             CloseQuietly(early.Window);
         }
+        if (printers == 0 && wrong.Count == 0) return Skipped(name, note);
         return CheckKit.Tally(name, 2, wrong, note.Length == 0 ? null : note);
     }
 

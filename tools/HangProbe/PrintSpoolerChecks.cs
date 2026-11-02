@@ -152,11 +152,12 @@ internal static class PrintSpoolerChecks
             using (var missing = PrintJob.ResolveQueue(live, made))
                 if (missing is not null) wrong.Add("a made-up name resolved to a queue");
 
-            if (!PdfQueueExists()) { note = $"'{PdfQueue}' is not installed, so the positive lookup was skipped"; return; }
+            if (!PdfQueueExists()) { note = $"'{PdfQueue}' is not installed, so the positive lookup did not run"; return; }
             using var pdf = PrintJob.ResolveQueue(live, PdfQueue);
             if (pdf is null || pdf.FullName != PdfQueue) wrong.Add($"'{PdfQueue}' resolved to '{pdf?.FullName ?? "nothing"}'");
         });
-        return CheckKit.Tally(name, 4, wrong, note.Length == 0 ? null : note);
+        if (wrong.Count == 0 && note.Length > 0) return Skipped(name, note);
+        return CheckKit.Tally(name, 4, wrong);
     }
 
     private sealed class FakeQueue(string name) : IDisposable

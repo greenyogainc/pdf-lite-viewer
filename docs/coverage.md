@@ -30,7 +30,7 @@ A full measurement needs:
 | | Line | Branch |
 |---|---|---|
 | Before this work | 85.86% (1349/1571) | 74.88% (632/844) |
-| Now | 100% (1578/1578) | 100% (808/808) |
+| Now | 100% (1575/1575) | 100% (804/804) |
 
 Every file is fully covered. These are the counts per file:
 
@@ -41,7 +41,7 @@ Every file is fully covered. These are the counts per file:
 | `AppSupportClient.cs` | 70 | 80 |
 | `ChapterItem.cs` | 35 | 14 |
 | `Loc.cs` | 21 | 10 |
-| `MainWindow.xaml.cs` | 740 | 426 |
+| `MainWindow.xaml.cs` | 737 | 422 |
 | `PageItem.cs` | 9 | 2 |
 | `PdfDoc.cs` | 144 | 48 |
 | `PdfPrintPaginator.cs` | 37 | 0 |
@@ -96,8 +96,8 @@ These checks verify what each fallback does, not that it can ever run.
   different scales.
 - **Physical printers.** The only real job goes to `Microsoft Print to PDF`. Elsewhere
   `PrintJob.Submit` is a throwing guard, because a preview window selects the default printer
-  on its own. A few checks swap in a recorder for one job, which sends nothing and puts the
-  guard back afterwards.
+  on its own. A few checks swap in a recorder for their own length, which sends nothing and
+  puts the guard back afterwards.
 - **Print-server queues.** `PickQueue` is tested as logic only.
 - **The live support endpoint.** Every check uses a fake `HttpMessageHandler`.
 
@@ -105,7 +105,7 @@ These checks verify what each fallback does, not that it can ever run.
 
 - **Timing:** the "visible but not yet loaded" arm of `PrintPreviewWindow.LoadPrintersAsync`
   needs the printer list to arrive during `ShowDialog`, before `Loaded` fires. If a run shows
-  807/808 branches, look there first.
+  803/804 branches, look there first.
 - **Dead library path:** PdfPig 0.1.15 never produces an `EmbeddedBookmarkNode`. It drops a
   GoToE outline item before `PdfDoc` sees it, so the exclusion in `MapBookmarks` only guards
   against a future PdfPig. That test compiles to a plain boolean with no jump of its own, so

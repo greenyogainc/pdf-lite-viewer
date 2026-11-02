@@ -72,9 +72,13 @@ internal sealed class DialogExpectation : IDisposable
         var handled = Handled;
         return new Check(name, Satisfied, Satisfied
             ? $"{handled.Count} dialog(s) answered ({Action}): {Describe(handled)}"
-            : $"no dialog with caption containing '{CaptionContains}'" +
-              (TextContains is null ? "" : $" and text containing '{TextContains}'") + " appeared");
+            : $"{Wanted} was never answered");
     }
+
+    /// <summary>What this expectation was waiting for, in words.</summary>
+    internal string Wanted =>
+        (CaptionContains.Length == 0 ? "a dialog of any caption" : $"a dialog with caption containing '{CaptionContains}'") +
+        (TextContains is null ? "" : $" and text containing '{TextContains}'");
 
     internal static string Describe(IEnumerable<DialogRecord> records) =>
         string.Join(" | ", records.Select(r => $"[{r.Caption}] {r.Text.ReplaceLineEndings(" ")}"));
@@ -223,7 +227,7 @@ internal sealed class DialogDismisser : IDisposable
               (faults.Length == 0 ? "" : $"; dismisser faults: {string.Join(" | ", faults)}");
         string missedDetail = missed.Count == 0
             ? "every expectation was answered"
-            : "never answered: " + string.Join(", ", missed.Select(e => $"'{e.CaptionContains}'"));
+            : "never answered: " + string.Join(", ", missed.Select(e => e.Wanted));
 
         return new[]
         {

@@ -174,6 +174,7 @@ Write-Host "TOTAL line $linePercent% ($linesCovered/$linesTotal), branch $branch
 if ($gaps.Count -eq 0) { Write-Host "No uncovered lines or partial branches." }
 else { Write-Host "Uncovered lines and partial branches: $(Join-Path $out 'gaps.txt')" }
 
+if ($ReportOnly) { Write-Host "Report only: this says nothing about whether the harnesses passed." }
 if ($failures.Count -gt 0) { Write-Host ("Harness failures: " + ($failures -join "; ")); exit 1 }
 if ($linePercent -lt $MinLine) { Write-Host "Line coverage is below $MinLine%."; exit 1 }
 if ($branchPercent -lt $MinBranch) { Write-Host "Branch coverage is below $MinBranch%."; exit 1 }

@@ -486,7 +486,11 @@ internal static class Program
     private static void AddFinalChecks(List<Check> checks)
     {
         const string guard = "print guard blocks the spooler call";
-        checks.Add(CheckKit.Run(guard, () => new Check(guard, GuardInPlace(), "PrintJob.Submit is the throwing guard")));
+        checks.Add(CheckKit.Run(guard, () =>
+        {
+            bool inPlace = GuardInPlace();
+            return new Check(guard, inPlace, inPlace ? "PrintJob.Submit is the throwing guard" : "PrintJob.Submit returned: the guard is not in place");
+        }));
         checks.AddRange(Dialogs.FinalChecks());
     }
 
