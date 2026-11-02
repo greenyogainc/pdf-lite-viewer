@@ -184,7 +184,8 @@ internal static partial class WindowStateChecks
     /// A render that is cancelled must not leave a bitmap of the old orientation behind. Three
     /// ways it can be cancelled are driven by hand: while it waits for the render lock (the lock
     /// is held), after it finished with its continuation already queued (the UI thread sleeps
-    /// until the pool is done, rotates, then yields), and after a failed page, before the next one.
+    /// until the pool is done, rotates, then yields), and after a failed page, when the spread
+    /// is replaced by a shorter one before the loop reaches the next slot.
     /// </summary>
     private static async Task<Check> RenderCancellationAsync(Docs docs, string name)
     {
@@ -235,7 +236,8 @@ internal static partial class WindowStateChecks
             CloseQuietly(window);
         }
 
-        // 3. A page fails, the view is rotated before the loop reaches the next page.
+        // 3. A page fails, and the spread is replaced by a shorter one (the cover alone) before the
+        // loop reaches the second slot, which no longer exists.
         window = await RenderedWindowAsync(docs.Plain7, ViewMode.Facing, page: 1);
         try
         {
@@ -246,10 +248,11 @@ internal static partial class WindowStateChecks
             long mark = ThreadPool.CompletedWorkItemCount;
             var pending = window.UpdateRenderedPagesAsync();
             WaitForPool(mark, 1);
-            window.RotateClockwise();
-            await pending.WaitAsync(TimeSpan.FromSeconds(10));
+            window.GoToPage(0);
+            if (window.Items.Count != 1) throw new InvalidOperationException($"expected the cover alone, got {window.Items.Count} slot(s)");
+            await pending.WaitAsync(TimeSpan.FromSeconds(10));    // throws if the loop indexed the old second slot
             int entries = EntriesSince(logMark);
-            if (entries != 1) wrong.Add($"{entries} failure(s) were logged; the loop should have stopped after the first page once the view was rotated");
+            if (entries != 1) wrong.Add($"{entries} failure(s) were logged; the loop should have stopped after the first page once the spread changed");
         }
         finally
         {

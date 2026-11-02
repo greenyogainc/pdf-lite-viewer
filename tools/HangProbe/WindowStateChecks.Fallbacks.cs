@@ -55,11 +55,28 @@ internal static partial class WindowStateChecks
             if (window.PageBox.Text != "5") wrong.Add($"going to page 5 with no panel left the page box at '{window.PageBox.Text}'");
             await window.UpdateRenderedPagesAsync();
             if (!await Poll.UntilAsync(() => window.Items[4].Image is not null, Patience)) wrong.Add("with no panel the current page was not rendered");
+
+            // Scrolling reports a change, but with no panel there is no page on top to track.
+            window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 40);
+            await Task.Delay(300);
+            await Pump(window);
+            if (window.PageBox.Text != "5") wrong.Add($"scrolling with no panel moved the page box to '{window.PageBox.Text}'");
+
+            // A panel with a child that is not an element at all, and one that is not on screen.
+            var stray = new StackPanel();
+            stray.Children.Add(new UIElement());
+            stray.Children.Add(new Border());
+            typeof(MainWindow).GetField("_pagesPanel", instance)!.SetValue(window, stray);
+            window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 40);
+            await window.UpdateRenderedPagesAsync();
+            await Task.Delay(300);
+            await Pump(window);
+            if (window.PageBox.Text != "5") wrong.Add($"scrolling past children that are not page containers moved the page box to '{window.PageBox.Text}'");
         }
         finally
         {
             CloseQuietly(window);
         }
-        return CheckKit.Tally(name, 5, wrong);
+        return CheckKit.Tally(name, 8, wrong);
     }
 }
