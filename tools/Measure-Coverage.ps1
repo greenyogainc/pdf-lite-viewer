@@ -3,7 +3,7 @@
 #
 #   tools\Measure-Coverage.ps1 [-Pages 600] [-TimeoutMinutes 20] [-MinLine 0] [-MinBranch 0]
 #
-# Needs an interactive desktop: HangProbe really shows windows and presses Left Ctrl, so
+# Needs an interactive desktop: HangProbe really shows windows and takes the foreground, so
 # do not type while it runs. Results land in coverage\ (coverage.cobertura.xml, gaps.txt,
 # and one log per harness run).
 param(
@@ -99,30 +99,42 @@ for ($i = 0; $i -lt $runs.Count; $i++) {
     if ($code -ne 0) { $failures += "$($run.Label) exited $code" }
 }
 
-$coberturaPath = Join-Path $out "coverage.cobertura.xml"
-if (-not (Test-Path $coberturaPath)) { throw "Coverlet wrote no report; see the logs in $out" }
-[xml]$report = Get-Content $coberturaPath
+$jsonPath = Join-Path $out "coverage.json"
+if (-not (Test-Path $jsonPath)) { throw "Coverlet wrote no report; see the logs in $out" }
+$coverage = Get-Content $jsonPath -Raw | ConvertFrom-Json
 
+# Rounded down, so a small gap can never read as 100%.
+function Get-Percent($hit, $all) {
+    if ($all -eq 0) { return 100 }
+    return [Math]::Floor(10000.0 * $hit / $all) / 100
+}
+
+# From coverlet's JSON: the Cobertura report's per-line figure undercounts a large switch.
 # One source line can appear in several generated classes (a lambda's closure, an async
 # state machine), so a line counts as covered when any of them ran it.
 $byFile = @{}
-foreach ($package in $report.coverage.packages.package) {
-    foreach ($class in $package.classes.class) {
-        $file = $class.filename
-        if (-not $byFile.ContainsKey($file)) { $byFile[$file] = @{ Lines = @{}; Branches = @{} } }
-        foreach ($line in $class.lines.line) {
-            $number = [int]$line.number
-            $hits = [long]$line.hits
-            $known = if ($byFile[$file].Lines.ContainsKey($number)) { $byFile[$file].Lines[$number] } else { 0 }
-            $byFile[$file].Lines[$number] = [Math]::Max($known, $hits)
-            if ($line.branch -eq "True" -and $line.'condition-coverage' -match '\((\d+)/(\d+)\)') {
-                $seen = if ($byFile[$file].Branches.ContainsKey($number)) { $byFile[$file].Branches[$number] } else { @(0, 0) }
-                $byFile[$file].Branches[$number] = @(($seen[0] + [int]$Matches[1]), ($seen[1] + [int]$Matches[2]))
+foreach ($module in $coverage.PSObject.Properties) {
+    foreach ($document in $module.Value.PSObject.Properties) {
+        $entry = @{ Lines = @{}; Branches = @{} }
+        $byFile[$document.Name] = $entry
+        foreach ($class in $document.Value.PSObject.Properties) {
+            foreach ($method in $class.Value.PSObject.Properties) {
+                foreach ($line in $method.Value.Lines.PSObject.Properties) {
+                    $number = [int]$line.Name
+                    $known = if ($entry.Lines.ContainsKey($number)) { $entry.Lines[$number] } else { 0 }
+                    $entry.Lines[$number] = [Math]::Max([long]$known, [long]$line.Value)
+                }
+                foreach ($branch in $method.Value.Branches) {
+                    $number = [int]$branch.Line
+                    $seen = if ($entry.Branches.ContainsKey($number)) { $entry.Branches[$number] } else { @(0, 0) }
+                    $entry.Branches[$number] = @(($seen[0] + [int]($branch.Hits -gt 0)), ($seen[1] + 1))
+                }
             }
         }
     }
 }
 
+$linesCovered = 0; $linesTotal = 0; $branchesCovered = 0; $branchesTotal = 0
 $gaps = New-Object System.Collections.Generic.List[string]
 $rows = foreach ($file in ($byFile.Keys | Sort-Object)) {
     $lines = $byFile[$file].Lines
@@ -131,6 +143,10 @@ $rows = foreach ($file in ($byFile.Keys | Sort-Object)) {
     $partial = @($branches.Keys | Where-Object { $branches[$_][0] -lt $branches[$_][1] } | Sort-Object)
     $branchHit = ($branches.Values | ForEach-Object { $_[0] } | Measure-Object -Sum).Sum
     $branchAll = ($branches.Values | ForEach-Object { $_[1] } | Measure-Object -Sum).Sum
+    $linesCovered += $lines.Count - $missedLines.Count
+    $linesTotal += $lines.Count
+    $branchesCovered += [int]$branchHit
+    $branchesTotal += [int]$branchAll
     $name = Split-Path $file -Leaf
     if ($missedLines.Count -gt 0) { $gaps.Add("$name uncovered lines: " + ($missedLines -join ", ")) }
     if ($partial.Count -gt 0) {
@@ -144,10 +160,10 @@ $rows = foreach ($file in ($byFile.Keys | Sort-Object)) {
     }
 }
 
-$linePercent = [Math]::Round([double]$report.coverage.'line-rate' * 100, 2)
-$branchPercent = [Math]::Round([double]$report.coverage.'branch-rate' * 100, 2)
+$linePercent = Get-Percent $linesCovered $linesTotal
+$branchPercent = Get-Percent $branchesCovered $branchesTotal
 $rows | Format-Table -AutoSize | Out-String | Write-Host
-Write-Host "TOTAL line $linePercent% ($($report.coverage.'lines-covered')/$($report.coverage.'lines-valid')), branch $branchPercent% ($($report.coverage.'branches-covered')/$($report.coverage.'branches-valid'))"
+Write-Host "TOTAL line $linePercent% ($linesCovered/$linesTotal), branch $branchPercent% ($branchesCovered/$branchesTotal)"
 [IO.File]::WriteAllLines((Join-Path $out "gaps.txt"), [string[]]$gaps)
 if ($gaps.Count -eq 0) { Write-Host "No uncovered lines or partial branches." }
 else { Write-Host "Uncovered lines and partial branches: $(Join-Path $out 'gaps.txt')" }

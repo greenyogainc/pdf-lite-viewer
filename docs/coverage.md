@@ -17,8 +17,8 @@ probe. Results go to `coverage\`, which is not tracked.
 
 A full measurement needs:
 
-- An interactive desktop of at least 1280x900. HangProbe shows real windows and presses
-  Left Ctrl, so don't type during a run.
+- An interactive desktop of at least 1280x900. HangProbe shows real windows and takes the
+  foreground, so don't type during a run.
 - The `Microsoft Print to PDF` queue. Without it, the real-print check skips and
   `PrintJob.SubmitToSpooler` stays uncovered.
 - The script's default of 600 pages. At 40 pages the sidebar never recycles a chapter
@@ -40,7 +40,7 @@ Every file is fully covered. These are the counts per file:
 | `AppSupportClient.cs` | 70 | 80 |
 | `ChapterItem.cs` | 35 | 14 |
 | `Loc.cs` | 21 | 10 |
-| `MainWindow.xaml.cs` | 740 | 418 |
+| `MainWindow.xaml.cs` | 740 | 426 |
 | `PageItem.cs` | 9 | 2 |
 | `PdfDoc.cs` | 144 | 48 |
 | `PdfPrintPaginator.cs` | 37 | 0 |

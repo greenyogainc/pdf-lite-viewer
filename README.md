@@ -115,8 +115,8 @@ the run. It then asserts the things a fast-but-wrong viewer would get wrong — 
 centred, scrollbar spanning the document, go-to-page landing on the right page, pages
 actually rendering — and writes a PNG of each view mode to `%TEMP%\hangprobe-*.png`.
 
-It needs an interactive desktop session, since it really shows windows and presses
-Left Ctrl, so don't type during a run. No HangProbe run reaches a physical printer:
+It needs an interactive desktop session, since it really shows windows and takes the
+foreground, so don't type during a run. No HangProbe run reaches a physical printer:
 print submission is blocked at startup, except that `--real-print-to-pdf` sends one job
 to `Microsoft Print to PDF`. Native dialogs the viewer opens are answered automatically.
 

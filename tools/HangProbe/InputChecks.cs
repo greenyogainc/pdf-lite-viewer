@@ -14,15 +14,16 @@ namespace HangProbe;
 /// <summary>
 /// Drives keyboard, pointer and drag input on the live window. The handlers stay private;
 /// the probe raises the same routed events the window already listens for.
-/// Ctrl shortcuts read <see cref="Keyboard.Modifiers"/>, which follows the real keyboard,
-/// so those cases hold the Control key down for the duration of the event.
+/// Ctrl shortcuts read <see cref="Keyboard.Modifiers"/>, so those cases mark Control as down
+/// in this thread's own key table for the duration of the event (see <see cref="SetCtrl"/>).
 /// </summary>
 internal static class InputChecks
 {
-    // Left Ctrl, not VK_CONTROL. WPF asks GetKeyState for LeftCtrl and RightCtrl
+    // Both, as a real key press sets them. WPF asks GetKeyState for LeftCtrl and RightCtrl
     // specifically; the generic VK_CONTROL bit does not light those up.
+    private const byte VkControl = 0x11;
     private const byte VkLeftCtrl = 0xA2;
-    private const uint KeyeventfKeyup = 0x0002;
+    private const byte KeyIsDown = 0x80;
 
     public static async Task<List<Check>> RunAsync(MainWindow window, string stressPdf, Func<Task> settle)
     {
@@ -83,9 +84,8 @@ internal static class InputChecks
         // Chapter tree keeps its own navigation while it has focus.
         window.SetChapterPaneVisible(true);
         await settle();
-        window.ChapterTree.Focus();
-        await settle();
-        bool treeKept = window.ChapterTree.IsKeyboardFocusWithin
+        bool treeFocused = await Foreground.FocusAsync(window, window.ChapterTree, () => window.ChapterTree.IsKeyboardFocusWithin);
+        bool treeKept = treeFocused
                         && !RaisePreviewKey(window, Key.Left)
                         && Page(window) == page;
         checks.Add(new Check("keys: chapter tree keeps Left", treeKept,
@@ -390,16 +390,14 @@ internal static class InputChecks
 
     internal static void SetCtrl(bool down)
     {
-        // keybd_event posts to the foreground thread. GetKeyState (what
-        // Keyboard.Modifiers reads) updates only once that thread pulls the
-        // message. Activate first so the message lands on this UI thread, then
-        // pump it. Scan code 0x1D is Left Ctrl; the generic VK_CONTROL bit is
-        // not what WPF checks.
-        Application.Current?.MainWindow?.Activate();
-        keybd_event(VkLeftCtrl, 0x1D, down ? 0u : KeyeventfKeyup, UIntPtr.Zero);
-        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
-            static () => { },
-            System.Windows.Threading.DispatcherPriority.Input);
+        // Keyboard.Modifiers reads GetKeyState, which answers from this thread's own key table.
+        // Writing that table needs no focus and presses nothing. A real key press (keybd_event)
+        // only reaches this thread while the probe's window holds the foreground, and also goes
+        // to whatever else is on the desktop.
+        var keys = new byte[256];
+        if (!GetKeyboardState(keys)) throw new System.ComponentModel.Win32Exception();
+        keys[VkControl] = keys[VkLeftCtrl] = down ? KeyIsDown : (byte)0;
+        if (!SetKeyboardState(keys)) throw new System.ComponentModel.Win32Exception();
     }
 
     private static void RestoreRotation(MainWindow window, PDFtoImage.PdfRotation rotation)
@@ -415,6 +413,9 @@ internal static class InputChecks
     internal static int ZoomPercent(MainWindow window) =>
         int.TryParse(window.ZoomText.Text.TrimEnd('%'), out int percent) ? percent : -1;
 
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetKeyboardState(byte[] keys);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetKeyboardState(byte[] keys);
 }

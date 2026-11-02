@@ -132,6 +132,7 @@ internal static class AboutChecks
             about.Height = 620;
             about.SupportPanel.ScrollToBottom();
             await PumpAsync();
+            await Foreground.TakeAsync(about);
             await about.SendSupportAsync();
             await PumpAsync();
             checks.Add(new Check("support: invalid field visible after bottom submission",

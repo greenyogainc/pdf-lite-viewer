@@ -189,9 +189,7 @@ internal static partial class WindowStateChecks
 
             window.SetChapterPaneVisible(true);
             await RequirePaneAsync(window, "tree");
-            window.Activate();
-            window.ChapterTree.Focus();
-            if (!await Poll.UntilAsync(() => window.ChapterTree.IsKeyboardFocusWithin, TimeSpan.FromSeconds(10)))
+            if (!await Foreground.FocusAsync(window, window.ChapterTree, () => window.ChapterTree.IsKeyboardFocusWithin))
                 wrong.Add("the chapter tree could not take keyboard focus");
             else
             {
