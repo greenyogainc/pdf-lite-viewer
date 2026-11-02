@@ -98,6 +98,54 @@ internal static partial class WindowStateChecks
         return CheckKit.Tally(name, 2, wrong, note);
     }
 
+    // ---------- a viewport nobody can see ----------
+
+    /// <summary>
+    /// A hidden window still has its containers, but none of them is visible: the page tracking
+    /// and the render pass find nothing on screen and fall back to the current page instead of
+    /// scrolling or rendering by a stale idea of the viewport.
+    /// </summary>
+    private static async Task<Check> HiddenViewportAsync(Docs docs, string name)
+    {
+        var wrong = new List<string>();
+        var window = await ShownWindowAsync();
+        try
+        {
+            window.SetMode(ViewMode.Continuous);
+            await OpenAndRenderAsync(window, docs.Plain7);
+            if (!await Poll.UntilAsync(() => window.Items.Count > 0 && window.Items[0].Image is not null, Patience))
+                throw new InvalidOperationException("the first page never rendered");
+
+            // Scrolling a little inside the page that is on top does not change the page.
+            window.GoToPage(2);
+            if (!await Poll.UntilAsync(() => window.PageBox.Text == "3", Patience)) wrong.Add("going to page 3 did not show it");
+            await Task.Delay(300);
+            await Pump(window);
+            window.Scroller.ScrollToVerticalOffset(window.Scroller.VerticalOffset + 12);
+            await Task.Delay(300);
+            await Pump(window);
+            if (window.PageBox.Text != "3") wrong.Add($"scrolling 12 pixels moved the page box to '{window.PageBox.Text}'");
+
+            window.Hide();
+            await Pump(window);
+            window.GoToPage(4);
+            await window.UpdateRenderedPagesAsync();
+            await Pump(window);
+            if (window.PageBox.Text != "5") wrong.Add($"going to page 5 in a hidden window left the page box at '{window.PageBox.Text}'");
+
+            window.Show();
+            await Pump(window);
+            window.GoToPage(2);
+            if (!await Poll.UntilAsync(() => window.PageBox.Text == "3" && window.Items[2].Image is not null, Patience))
+                wrong.Add("the window did not render page 3 once it was shown again");
+        }
+        finally
+        {
+            CloseQuietly(window);
+        }
+        return CheckKit.Tally(name, 4, wrong);
+    }
+
     // ---------- failing renders ----------
 
     /// <summary>

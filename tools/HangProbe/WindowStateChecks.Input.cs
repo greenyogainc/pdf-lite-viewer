@@ -182,6 +182,10 @@ internal static partial class WindowStateChecks
                 NotHandled($"Ctrl+{key}", KeyWithCtrl(window, key));
             foreach (var key in new[] { Key.D1, Key.D2, Key.D3, Key.Left, Key.Right, Key.Home, Key.End })
                 NotHandled($"{key} typed in the page box", KeyOn(window.PageBox, key));
+            NotHandled("a letter typed in the page box", KeyOn(window.PageBox, Key.A));
+            // Keys with no meaning here, including every value the key switch's jump tables skip.
+            foreach (var key in new[] { Key.A, Key.Q, Key.Space, Key.Up, Key.Down, Key.Enter, Key.Tab, Key.F2, Key.ImeConvert, Key.ImeNonConvert, Key.ImeAccept, Key.ImeModeChange })
+                NotHandled($"{key}", KeyOn(window, key));
 
             window.SetChapterPaneVisible(true);
             await RequirePaneAsync(window, "tree");
@@ -194,6 +198,7 @@ internal static partial class WindowStateChecks
                 baseline = State(window);
                 foreach (var key in new[] { Key.Left, Key.Right, Key.Home, Key.End, Key.PageUp, Key.PageDown })
                     NotHandled($"{key} in the chapter tree", KeyOn(window, key));
+                NotHandled("a letter in the chapter tree", KeyOn(window, Key.A));
             }
             window.SetChapterPaneVisible(false);
             window.Scroller.Focus();
@@ -202,7 +207,7 @@ internal static partial class WindowStateChecks
         {
             CloseQuietly(window);
         }
-        return CheckKit.Tally(name, 1 + 9 + 3 + 7 + 6, wrong);
+        return CheckKit.Tally(name, 1 + 9 + 3 + 7 + 1 + 12 + 6 + 1, wrong);
     }
 
     /// <summary>

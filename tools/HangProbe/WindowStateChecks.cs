@@ -84,7 +84,10 @@ internal static partial class WindowStateChecks
             await Step("window: a chapter load in flight when the document changes ends quietly", name => SupersededLoadAsync(docs, name));
             await Step("window: with no bookmark before page 2, page 1 has no active chapter in any mode", name => NamedDestinationsAsync(docs, name));
             await Step("window: nested chapters expand their parents and the sidebar finds the active row", name => NestedChaptersAsync(docs, name));
+            await Step("window: in facing mode a chapter picked on the visible spread stays picked", name => FacingPickAsync(docs, name));
             await Step("window: a bookmark that goes nowhere selects without navigating", name => NonNavigableChaptersAsync(docs, name));
+            await Step("window: continuous scrolling keeps the page within it, and a hidden window falls back to the current page", name => HiddenViewportAsync(docs, name));
+            await Step("window: with nothing laid out, the continuous-mode helpers fall back instead of failing", name => NoLayoutFallbacksAsync(docs, name));
             await Step("window: a strip page stays inside the pixel budget and a speck is not rendered", name => PixelBudgetsAsync(docs, name));
             await Step("window: a page PDFium cannot render is logged and the viewer lives", name => RenderFailureAsync(docs, name));
             await Step("window: a cancelled render never leaves a bitmap of the old orientation", name => RenderCancellationAsync(docs, name));

@@ -49,13 +49,19 @@ internal static partial class WindowStateChecks
     }
 
     /// <summary>
-    /// Blocks the UI thread - without pumping it - until the thread pool has finished
+    /// Blocks the UI thread - without pumping it - while the thread pool finishes
     /// <paramref name="items"/> work items started since <paramref name="mark"/>. Whatever those
     /// items post back to the dispatcher is then queued and cannot run until the caller yields,
     /// which is what lets a check decide the order continuations run in.
+    ///
+    /// The pool does not say which item is whose, and unrelated work (a timer of a window an
+    /// earlier check closed) also counts, so the counter alone could be satisfied early. The
+    /// work these checks start is a few milliseconds long; sleeping a fixed 300 ms first makes
+    /// an early count harmless. Checks that depend on the order still verify it afterwards.
     /// </summary>
     private static void WaitForPool(long mark, int items)
     {
+        Thread.Sleep(300);
         var clock = Stopwatch.StartNew();
         while (ThreadPool.CompletedWorkItemCount - mark < items || ThreadPool.PendingWorkItemCount > 0)
         {
@@ -135,12 +141,18 @@ internal static partial class WindowStateChecks
             window.SetChapterPaneVisible(false);
             window.SetChapterPaneVisible(true);
             if (PaneState(window) != "tree") wrong.Add($"reopening a loaded pane shows '{PaneState(window)}'");
+
+            // The toolbar toggle drives the pane as well: unchecking it closes the pane, checking it opens it.
+            window.ChapterToggle.IsChecked = false;
+            if (window.ChapterPane.Visibility != Visibility.Collapsed) wrong.Add("unchecking the chapters toggle did not close the pane");
+            window.ChapterToggle.IsChecked = true;
+            if (window.ChapterPane.Visibility != Visibility.Visible || PaneState(window) != "tree") wrong.Add("checking the chapters toggle did not open the pane on its tree");
         }
         finally
         {
             CloseQuietly(window);
         }
-        return CheckKit.Tally(name, 7, wrong);
+        return CheckKit.Tally(name, 8, wrong);
     }
 
     // ---------- loads that outlive their document ----------
@@ -154,6 +166,21 @@ internal static partial class WindowStateChecks
     /// never touch it, not even for a moment.
     /// </summary>
     private static async Task<Check> StaleLoadAsync(Docs docs, string name, bool failing)
+    {
+        // The order is arranged with sleeps on a thread pool this check does not own, so the
+        // arrangement is verified and, if the pool was slow enough to spoil it, tried again.
+        const int attempts = 3;
+        for (int attempt = 1; attempt <= attempts; attempt++)
+        {
+            var (arranged, wrong) = await StaleLoadAttemptAsync(docs, failing);
+            if (arranged)
+                return CheckKit.Tally(name, 5, wrong, (failing ? "the old load failed after the swap" : "the old load succeeded after the swap") +
+                                                      (attempt > 1 ? $" (attempt {attempt})" : ""));
+        }
+        return new Check(name, false, $"the old load's answer never arrived after the document swap in {attempts} attempts, so the stale path was not reached");
+    }
+
+    private static async Task<(bool Arranged, List<string> Wrong)> StaleLoadAttemptAsync(Docs docs, bool failing)
     {
         var wrong = new List<string>();
         var window = await ShownWindowAsync();
@@ -170,11 +197,14 @@ internal static partial class WindowStateChecks
             if (failing) ClearBytes(a);
             else aRoots = a.GetChapters(CancellationToken.None, "untitled");
 
-            var assigned = new List<object?>();
-            bool failedShown = false;
-            using var treeWatch = Watch(window.ChapterTree, ItemsControl.ItemsSourceProperty, () => assigned.Add(window.ChapterTree.ItemsSource));
+            // What happened, in order: the swap to B (its title is applied), and anything that
+            // came from A's load - its outline reaching the tree, or its failure reaching the pane.
+            var events = new List<string>();
+            using var swapWatch = Watch(window, Window.TitleProperty, () => events.Add("swap"));
+            using var treeWatch = Watch(window.ChapterTree, ItemsControl.ItemsSourceProperty,
+                () => { if (aRoots is not null && ReferenceEquals(window.ChapterTree.ItemsSource, aRoots)) events.Add("A's outline"); });
             using var failedWatch = Watch(window.ChapterFailedText, UIElement.VisibilityProperty,
-                () => failedShown |= window.ChapterFailedText.Visibility == Visibility.Visible);
+                () => { if (window.ChapterFailedText.Visibility == Visibility.Visible) events.Add("A's failure"); });
 
             long mark = ThreadPool.CompletedWorkItemCount;
             var opening = window.OpenFileAsync(Docs.Fixture("nested-internal.pdf"));
@@ -189,18 +219,23 @@ internal static partial class WindowStateChecks
             await Task.Delay(150);
             await Pump(window);
 
+            int swap = events.IndexOf("swap");
+            int fromA = events.FindIndex(e => e.StartsWith("A's"));
+            if (swap < 0 || fromA >= 0 && fromA < swap)
+                return (false, wrong);                 // A's answer got in before the swap: not the order this check is about
+
             var roots = Roots(window);
             if (roots.Count != 1 || roots[0].Title != "Part I") wrong.Add($"the pane shows {roots.Count} root(s) ({string.Join(", ", roots.Select(r => r.Title))}), expected B's single 'Part I'");
             if (window.Document?.PageCount != 3) wrong.Add($"the open document has {window.Document?.PageCount} pages, expected B's 3");
-            if (aRoots is not null && assigned.Any(x => ReferenceEquals(x, aRoots))) wrong.Add("the old document's chapters were put in the tree");
-            if (failedShown) wrong.Add("the pane flashed 'failed' for the old document's failure");
+            if (events.Any(e => e == "A's outline")) wrong.Add("the old document's outline was put in the tree after the swap");
+            if (events.Any(e => e == "A's failure")) wrong.Add("the pane showed 'failed' for the old document's failure after the swap");
             if (PaneState(window) == "failed") wrong.Add("the pane ended on 'failed'");
+            return (true, wrong);
         }
         finally
         {
             CloseQuietly(window);
         }
-        return CheckKit.Tally(name, 5, wrong, failing ? "the old load failed after the swap" : "the old load succeeded after the swap");
     }
 
     /// <summary>
@@ -388,6 +423,38 @@ internal static partial class WindowStateChecks
             CloseQuietly(unshown);
         }
         return CheckKit.Tally(name, 8, wrong);
+    }
+
+    /// <summary>
+    /// In facing mode the chapter that counts for a spread is the one on its right-hand page, but
+    /// a reader can pick the chapter on the left-hand page. That pick stays selected: the spread
+    /// is already on screen, so it is neither rebuilt nor re-synced over the reader's choice.
+    /// </summary>
+    private static async Task<Check> FacingPickAsync(Docs docs, string name)
+    {
+        var wrong = new List<string>();
+        var window = await WindowWithPaneAsync(docs.TwoParts, ViewMode.Facing);
+        try
+        {
+            var chapterA = Chapter(window, "Chapter A");
+            var chapterB = Chapter(window, "Chapter B");
+            window.GoToPage(2);
+            if (!await Poll.UntilAsync(() => chapterB.IsSelected, Patience)) wrong.Add("the spread of pages 2 and 3 did not select the chapter on page 3");
+            var spread = window.Items;
+
+            chapterA.IsSelected = true;
+            await Poll.UntilAsync(() => !chapterB.IsSelected, TimeSpan.FromSeconds(5));
+            await Pump(window);
+            await Task.Delay(150);
+            if (!chapterA.IsSelected || chapterB.IsSelected) wrong.Add($"the picked chapter was overwritten (A selected={chapterA.IsSelected}, B selected={chapterB.IsSelected})");
+            if (!ReferenceEquals(spread, window.Items)) wrong.Add("picking a chapter on the visible spread rebuilt it");
+            if (window.PageBox.Text != "2") wrong.Add($"the page box reads '{window.PageBox.Text}', expected the picked page 2");
+        }
+        finally
+        {
+            CloseQuietly(window);
+        }
+        return CheckKit.Tally(name, 3, wrong);
     }
 
     /// <summary>

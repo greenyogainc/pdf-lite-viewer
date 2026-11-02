@@ -195,7 +195,10 @@ internal static class PrintChecks
         try
         {
             if (Press(h, Key.P) || h.Jobs != 0) wrong.Add($"P without Control was handled or printed (jobs {h.Jobs})");
-            if (Press(h, Key.A)) wrong.Add("an unrelated key was handled");
+            // Keys with no meaning in the preview, including the ones its jump table skips over.
+            foreach (var key in new[] { Key.A, Key.End, Key.Home, Key.Up, Key.Down, Key.Space, Key.Tab })
+                if (Press(h, key)) wrong.Add($"{key} was handled");
+            if (PressFrom(h, h.Window.CopiesBox, Key.D1)) wrong.Add("a digit typed into the copies box was handled");
             string label = h.Window.PageLabel.Text;
             bool left = PressFrom(h, h.Window.CopiesBox, Key.Left), right = PressFrom(h, h.Window.CopiesBox, Key.Right);
             if (left || right || h.Window.PageLabel.Text != label)
