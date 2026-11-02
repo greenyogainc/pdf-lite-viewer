@@ -1,7 +1,8 @@
 # Measures line and branch coverage of PdfLiteViewer.dll across the test harnesses,
 # merging every run into one report. XAML-generated code is not counted.
 #
-#   tools\Measure-Coverage.ps1 [-Pages 600] [-TimeoutMinutes 20] [-MinLine 0] [-MinBranch 0]
+#   tools\Measure-Coverage.ps1 [-Pages 600] [-TimeoutMinutes 20] [-MinLine 100] [-MinBranch 100]
+#   tools\Measure-Coverage.ps1 -ReportOnly     # summarize the coverage.json already there
 #
 # Needs an interactive desktop: HangProbe really shows windows and takes the foreground, so
 # do not type while it runs. Results land in coverage\ (coverage.cobertura.xml, gaps.txt,
@@ -10,9 +11,10 @@ param(
     # Enough chapters to recycle sidebar containers; at 40 the echo-guard check cannot run.
     [int]$Pages = 600,
     [int]$TimeoutMinutes = 20,
-    [double]$MinLine = 0,
-    [double]$MinBranch = 0,
-    [switch]$SkipBuild
+    [double]$MinLine = 100,
+    [double]$MinBranch = 100,
+    [switch]$SkipBuild,
+    [switch]$ReportOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,43 +71,45 @@ function Invoke-Harness($label, $project, $harnessArgs, [switch]$Last) {
     return $code
 }
 
-if (Test-Path $out) { Remove-Item $out -Recurse -Force }
-New-Item -ItemType Directory -Path $out | Out-Null
-
-& dotnet tool restore | Out-Null
-if (-not $SkipBuild) {
-    foreach ($project in "ChapterSmoke", "HangProbe") {
-        & dotnet build "tools\$project" -c Debug -nologo -v q | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Debug build of $project failed." }
-    }
-}
-
-$fixtures = Join-Path $root "tools\fixtures\*.pdf"
-$startupPdf = Join-Path $root "tools\fixtures\no-outline.pdf"
-# The inner backslash-quotes survive Quote and reach the harness as a quoted path.
-$startupArgs = '{0} --startup-check \"{1}\" --coverage' -f $Pages, $startupPdf
 $failures = @()
-$runs = @(
-    @{ Label = "chaptersmoke"; Project = "ChapterSmoke"; Args = $fixtures },
-    @{ Label = "about-check"; Project = "HangProbe"; Args = "$Pages --about-check --coverage" },
-    @{ Label = "startup-check"; Project = "HangProbe"; Args = $startupArgs },
-    # The only run that reaches the real spooler call, and only for Microsoft Print to PDF.
-    @{ Label = "real-print"; Project = "HangProbe"; Args = "$Pages --real-print-to-pdf --coverage" },
-    @{ Label = "probe"; Project = "HangProbe"; Args = "$Pages --coverage" }
-)
-for ($i = 0; $i -lt $runs.Count; $i++) {
-    $run = $runs[$i]
-    $code = Invoke-Harness $run.Label $run.Project $run.Args -Last:($i -eq $runs.Count - 1)
-    if ($code -ne 0) { $failures += "$($run.Label) exited $code" }
+if (-not $ReportOnly) {
+    if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+    New-Item -ItemType Directory -Path $out | Out-Null
+
+    & dotnet tool restore | Out-Null
+    if (-not $SkipBuild) {
+        foreach ($project in "ChapterSmoke", "HangProbe") {
+            & dotnet build "tools\$project" -c Debug -nologo -v q | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Debug build of $project failed." }
+        }
+    }
+
+    $fixtures = Join-Path $root "tools\fixtures\*.pdf"
+    $startupPdf = Join-Path $root "tools\fixtures\no-outline.pdf"
+    # The inner backslash-quotes survive Quote and reach the harness as a quoted path.
+    $startupArgs = '{0} --startup-check \"{1}\" --coverage' -f $Pages, $startupPdf
+    $runs = @(
+        @{ Label = "chaptersmoke"; Project = "ChapterSmoke"; Args = $fixtures },
+        @{ Label = "about-check"; Project = "HangProbe"; Args = "$Pages --about-check --coverage" },
+        @{ Label = "startup-check"; Project = "HangProbe"; Args = $startupArgs },
+        # The only run that reaches the real spooler call, and only for Microsoft Print to PDF.
+        @{ Label = "real-print"; Project = "HangProbe"; Args = "$Pages --real-print-to-pdf --coverage" },
+        @{ Label = "probe"; Project = "HangProbe"; Args = "$Pages --coverage" }
+    )
+    for ($i = 0; $i -lt $runs.Count; $i++) {
+        $run = $runs[$i]
+        $code = Invoke-Harness $run.Label $run.Project $run.Args -Last:($i -eq $runs.Count - 1)
+        if ($code -ne 0) { $failures += "$($run.Label) exited $code" }
+    }
 }
 
 $jsonPath = Join-Path $out "coverage.json"
 if (-not (Test-Path $jsonPath)) { throw "Coverlet wrote no report; see the logs in $out" }
 $coverage = Get-Content $jsonPath -Raw | ConvertFrom-Json
 
-# Rounded down, so a small gap can never read as 100%.
+# Rounded down, so a small gap can never read as 100%. Nothing measured is not 100% either.
 function Get-Percent($hit, $all) {
-    if ($all -eq 0) { return 100 }
+    if ($all -eq 0) { return 0 }
     return [Math]::Floor(10000.0 * $hit / $all) / 100
 }
 
@@ -159,6 +163,8 @@ $rows = foreach ($file in ($byFile.Keys | Sort-Object)) {
         Branches = "$([int]$branchHit)/$([int]$branchAll)"
     }
 }
+
+if ($linesTotal -eq 0) { throw "Nothing was measured: coverlet found no lines in PdfLiteViewer.dll. See the logs in $out" }
 
 $linePercent = Get-Percent $linesCovered $linesTotal
 $branchPercent = Get-Percent $branchesCovered $branchesTotal

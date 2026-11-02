@@ -21,8 +21,6 @@ namespace HangProbe;
 /// </summary>
 internal static class PrintSpoolerChecks
 {
-    private const string PdfQueue = "Microsoft Print to PDF";
-
     public static async Task<List<Check>> RunAsync()
     {
         var folder = Path.Combine(Path.GetTempPath(), $"hangprobe-spooler-{Guid.NewGuid():N}");
@@ -249,34 +247,7 @@ internal static class PrintSpoolerChecks
         return CheckKit.Tally(name, 3, wrong);
     }
 
-    private static bool PdfQueueExists()
-    {
-        try
-        {
-            using var server = new LocalPrintServer();
-            using var queue = PrintJob.ResolveQueue(server, PdfQueue);
-            return queue?.FullName == PdfQueue;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     // ---------- jobs ----------
-
-    private static bool GuardInPlace()
-    {
-        try
-        {
-            PrintJob.Submit(null!, null!, null!);
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return true;
-        }
-    }
 
     private static async Task<Check> UnavailableQueueAsync(Func<string, string> at)
     {
@@ -327,7 +298,7 @@ internal static class PrintSpoolerChecks
     {
         const string name = "spooler: the job hands the spooler what was asked for";
         if (!PdfQueueExists())
-            return new Check(name, true, $"skipped: no '{PdfQueue}' queue on this machine");
+            return Skipped(name, $"no '{PdfQueue}' queue on this machine");
         if (!GuardInPlace())
             return new Check(name, false, "the print guard is not in place, so no job was started");
 
@@ -432,7 +403,7 @@ internal static class PrintSpoolerChecks
     {
         const string name = "spooler: a job cancelled while paginating is cancelled";
         if (!PdfQueueExists())
-            return new Check(name, true, $"skipped: no '{PdfQueue}' queue on this machine");
+            return Skipped(name, $"no '{PdfQueue}' queue on this machine");
         if (!GuardInPlace())
             return new Check(name, false, "the print guard is not in place, so no job was started");
 

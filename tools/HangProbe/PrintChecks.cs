@@ -24,7 +24,6 @@ namespace HangProbe;
 /// </summary>
 internal static class PrintChecks
 {
-    private const string PdfQueue = "Microsoft Print to PDF";
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
 
     public static async Task<List<Check>> RunAsync()
@@ -131,14 +130,6 @@ internal static class PrintChecks
             throw;
         }
     }
-
-    private static void CloseQuietly(Window? window)
-    {
-        try { window?.Close(); } catch { /* teardown noise must not mask the result */ }
-    }
-
-    private static Task Pump(Window window) =>
-        window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background).Task;
 
     private static bool Press(Harness h, Key key) => RaiseKey(h.Window, key, Keyboard.KeyDownEvent);
 
@@ -353,33 +344,6 @@ internal static class PrintChecks
 
     // ---------- what reaches the job ----------
 
-    private static bool GuardInPlace()
-    {
-        try
-        {
-            PrintJob.Submit(null!, null!, null!);
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return true;
-        }
-    }
-
-    private static bool PdfQueueExists()
-    {
-        try
-        {
-            using var server = new LocalPrintServer();
-            using var queue = PrintJob.ResolveQueue(server, PdfQueue);
-            return queue?.FullName == PdfQueue;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     /// <summary>
     /// The window snapshots copies, colour and quality when Print is pressed. The job runs for
     /// real up to the spooler call against "Microsoft Print to PDF"; the call itself is a
@@ -387,7 +351,7 @@ internal static class PrintChecks
     /// </summary>
     private static async Task<Check> SnapshotAsync(PdfDoc doc, string name)
     {
-        if (!PdfQueueExists()) return new Check(name, true, $"skipped: no '{PdfQueue}' queue on this machine");
+        if (!PdfQueueExists()) return Skipped(name, $"no '{PdfQueue}' queue on this machine");
         if (!GuardInPlace()) return new Check(name, false, "the print guard is not in place, so no job was started");
 
         var cases = new (string Copies, bool Gray, bool Draft, int Expected)[]

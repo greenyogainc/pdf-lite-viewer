@@ -14,9 +14,10 @@ namespace HangProbe;
 /// </summary>
 internal static class RealPrintCheck
 {
-    private const string QueueName = "Microsoft Print to PDF";
     private const string PromptPort = "PORTPROMPT:";
-    private const string SaveDialogCaption = "Save Print Output As";
+    // The Save As caption is OS text and changes with the Windows language. This mode opens no
+    // other dialog, so the expectation matches whatever appears.
+    private const string AnyCaption = "";
     private static readonly TimeSpan Limit = TimeSpan.FromSeconds(60);
 
     public static async Task<List<Check>> RunAsync(Action<PrintQueue, PdfPrintPaginator, PrintTicket> spooler)
@@ -28,20 +29,20 @@ internal static class RealPrintCheck
         {
             string? port = await Task.Run(PortOfPdfQueue);
             if (port is null)
-                return new List<Check> { new(name, true, $"'{QueueName}' is not installed on this machine - skipped") };
+                return new List<Check> { Skipped(name, $"'{PdfQueue}' is not installed on this machine") };
             if (port != PromptPort)
-                return new List<Check> { new(name, false, $"'{QueueName}' is on port '{port}', not {PromptPort}; refusing to print to it") };
+                return new List<Check> { new(name, false, $"'{PdfQueue}' is on port '{port}', not {PromptPort}; refusing to print to it") };
 
             var doc = new PdfDoc(PdfFixtures.RepoFixture("no-outline.pdf"));
             PrintJob.Submit = (queue, paginator, ticket) =>
             {
-                if (queue.FullName != QueueName || queue.QueuePort.Name != PromptPort)
+                if (queue.FullName != PdfQueue || queue.QueuePort.Name != PromptPort)
                     throw new InvalidOperationException($"HangProbe refuses to print to '{queue.FullName}'.");
                 spooler(queue, paginator, ticket);
             };
 
-            using var dialog = Program.Dialogs.Expect(SaveDialogCaption, DialogAction.FillPath, path: target);
-            var job = PrintJob.RunAsync(doc, new[] { 0 }, QueueName, 1, grayscale: false, draft: false, "HangProbe real print");
+            using var dialog = Program.Dialogs.Expect(AnyCaption, DialogAction.FillPath, path: target);
+            var job = PrintJob.RunAsync(doc, new[] { 0 }, PdfQueue, 1, grayscale: false, draft: false, "HangProbe real print");
             if (await Task.WhenAny(job, Task.Delay(Limit)) != job)
             {
                 // The job's foreground thread would keep this process alive, and coverlet only
@@ -68,7 +69,7 @@ internal static class RealPrintCheck
     private static string? PortOfPdfQueue()
     {
         using var server = new LocalPrintServer();
-        using var queue = PrintJob.ResolveQueue(server, QueueName);
+        using var queue = PrintJob.ResolveQueue(server, PdfQueue);
         return queue?.QueuePort.Name;
     }
 

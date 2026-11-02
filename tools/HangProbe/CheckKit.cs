@@ -1,4 +1,10 @@
+global using static HangProbe.CheckKit;
+global using static HangProbe.PrintProbe;
 using System.IO;
+using System.Printing;
+using System.Windows;
+using System.Windows.Threading;
+using PdfLiteViewer;
 
 namespace HangProbe;
 
@@ -33,7 +39,67 @@ internal static class CheckKit
         new(name, wrong.Count == 0,
             wrong.Count == 0 ? $"{cases} case{(cases == 1 ? "" : "s")} verified" + (note is null ? "" : $"; {note}") : string.Join("; ", wrong));
 
+    /// <summary>
+    /// A check this machine cannot run. A plain run reports it and carries on, but a run whose
+    /// point is that everything ran (--coverage, --real-print-to-pdf) fails, so a skip can never
+    /// pass for a check that passed.
+    /// </summary>
+    public static Check Skipped(string name, string why) =>
+        new(name, !Program.SkipsAreFailures, SkippedPrefix + why);
+
+    public static int CountSkipped(IEnumerable<Check> checks) =>
+        checks.Count(c => c.Detail.StartsWith(SkippedPrefix, StringComparison.Ordinal));
+
+    public static void CloseQuietly(Window? window)
+    {
+        try { window?.Close(); } catch { /* teardown noise must not mask the result */ }
+    }
+
+    /// <summary>Runs the dispatcher out to Background priority, i.e. past every continuation queued so far.</summary>
+    public static Task Pump(Window window) =>
+        window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background).Task;
+
+    private const string SkippedPrefix = "skipped: ";
+
     private static Check Threw(string name, Exception ex) => new(name, false, $"threw {ex.GetType().Name}: {ex.Message}");
+}
+
+/// <summary>
+/// What several check groups need to know before starting a print job. One copy, so a change to
+/// what "the guard is in place" means cannot miss one and fail open.
+/// </summary>
+internal static class PrintProbe
+{
+    /// <summary>The only real queue any check may name: a virtual printer that uses no paper.</summary>
+    public const string PdfQueue = "Microsoft Print to PDF";
+
+    /// <summary>The throwing guard ignores its arguments, so this cannot reach a queue. A recorder left behind fails on the nulls, which the caller reports.</summary>
+    public static bool GuardInPlace()
+    {
+        try
+        {
+            PrintJob.Submit(null!, null!, null!);
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    public static bool PdfQueueExists()
+    {
+        try
+        {
+            using var server = new LocalPrintServer();
+            using var queue = PrintJob.ResolveQueue(server, PdfQueue);
+            return queue?.FullName == PdfQueue;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 
 /// <summary>The app's own error log, which checks read to prove something was logged rather than just thrown away.</summary>

@@ -27,6 +27,9 @@ internal static class Program
     private static int _exitCode;
     private static bool _coverage;
 
+    /// <summary>See <see cref="CheckKit.Skipped"/>.</summary>
+    internal static bool SkipsAreFailures { get; private set; }
+
     /// <summary>Answers the process's native dialogs; checks register what they expect through it.</summary>
     internal static DialogDismisser Dialogs { get; private set; } = null!;
 
@@ -45,6 +48,7 @@ internal static class Program
 
         // Instrumented code is slower, so stall budgets are reported but do not fail the run.
         _coverage = args.Contains("--coverage");
+        SkipsAreFailures = _coverage || args.Contains("--real-print-to-pdf");
 
         int pages = args.Length > 0 && int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)
             ? Math.Clamp(n, 1, 20_000)
@@ -359,7 +363,7 @@ internal static class Program
         {
             return new List<Check>
             {
-                new("printer list populated", true, "no printers installed on this machine — skipped"),
+                Skipped("printer list populated", "no printers installed on this machine"),
             };
         }
 
@@ -481,23 +485,9 @@ internal static class Program
     /// <summary>Checks every mode ends with: the print guard is still in place, and no dialog went unplanned.</summary>
     private static void AddFinalChecks(List<Check> checks)
     {
-        checks.Add(PrintGuardCheck());
+        const string guard = "print guard blocks the spooler call";
+        checks.Add(CheckKit.Run(guard, () => new Check(guard, GuardInPlace(), "PrintJob.Submit is the throwing guard")));
         checks.AddRange(Dialogs.FinalChecks());
-    }
-
-    private static Check PrintGuardCheck()
-    {
-        const string name = "print guard blocks the spooler call";
-        try
-        {
-            // The guard ignores its arguments, so nothing here can reach a queue.
-            PrintJob.Submit(null!, null!, null!);
-            return new Check(name, false, "PrintJob.Submit returned instead of throwing");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return new Check(name, true, ex.Message);
-        }
     }
 
     /// <summary>
@@ -544,9 +534,15 @@ internal static class Program
 
         Console.WriteLine();
         Console.WriteLine(failed == 0
-            ? $"PASS — {checks.Count} checks."
+            ? $"PASS — {checks.Count} checks{SkippedNote(checks)}."
             : $"FAIL — {failed} of {checks.Count} checks failed.");
         return failed == 0 ? 0 : 1;
+    }
+
+    private static string SkippedNote(IEnumerable<Check> checks)
+    {
+        int skipped = CountSkipped(checks);
+        return skipped == 0 ? "" : $" ({skipped} skipped)";
     }
 
     /// <summary>Prints one line per check and returns how many failed.</summary>
@@ -591,8 +587,8 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(failed == 0
             ? ignored == 0
-                ? $"PASS — {total} checks, no UI-thread stall over budget."
-                : $"PASS — {total} checks; {ignored} stall(s) over budget ignored (--coverage)."
+                ? $"PASS — {total} checks{SkippedNote(checks)}, no UI-thread stall over budget."
+                : $"PASS — {total} checks{SkippedNote(checks)}; {ignored} stall(s) over budget ignored (--coverage)."
             : $"FAIL — {failed} of {total} checks failed.");
         return failed == 0 ? 0 : 1;
     }

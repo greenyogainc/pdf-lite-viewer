@@ -244,11 +244,6 @@ internal static class AboutChecks
     private static bool HasFocus(Window window, UIElement element) =>
         element.IsKeyboardFocused || ReferenceEquals(System.Windows.Input.FocusManager.GetFocusedElement(window), element);
 
-    private static void CloseQuietly(Window window)
-    {
-        try { window.Close(); } catch { /* already closed */ }
-    }
-
     private static AppSupportClient ClientFor(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) =>
         new(new HttpClient(new SupportReply(reply)));
 

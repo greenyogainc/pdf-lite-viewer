@@ -141,15 +141,6 @@ internal static partial class WindowStateChecks
         return window;
     }
 
-    private static void CloseQuietly(Window? window)
-    {
-        try { window?.Close(); } catch { /* teardown noise must not mask the result */ }
-    }
-
-    /// <summary>Runs the dispatcher out to Background priority, i.e. past every continuation queued so far.</summary>
-    private static Task Pump(Window window) =>
-        window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background).Task;
-
     private static async Task OpenAndRenderAsync(MainWindow window, string path)
     {
         await window.OpenFileAsync(path);
@@ -157,7 +148,7 @@ internal static partial class WindowStateChecks
     }
 
     /// <summary>The PDFium bytes of a document, which the checks clear to make every later read of it fail.</summary>
-    private static byte[] BytesOf(PdfDoc doc) =>
+    internal static byte[] BytesOf(PdfDoc doc) =>
         (byte[])typeof(PdfDoc).GetField("_bytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(doc)!;
 
     private static void ClearBytes(PdfDoc doc) => Array.Clear(BytesOf(doc));
@@ -225,6 +216,16 @@ internal static partial class WindowStateChecks
             Case("zero", "0", Key.Enter, true, "1", 1);
             Case("another key leaves the text alone", "abc", Key.A, false, "abc", 0);
 
+            foreach (var mode in new[] { ViewMode.Facing, ViewMode.Continuous })
+            {
+                window.SetMode(mode);
+                window.GoToPage(2);
+                await Pump(window);
+                string shown = window.PageBox.Text;
+                Case($"letters in {mode} mode", "abc", Key.Enter, true, shown, int.Parse(shown));
+            }
+            window.SetMode(ViewMode.Single);
+
             window.PageBox.Text = "2";
             window.GoToPage(1);
         }
@@ -246,6 +247,6 @@ internal static partial class WindowStateChecks
         {
             CloseQuietly(empty);
         }
-        return CheckKit.Tally(name, 8, wrong);
+        return CheckKit.Tally(name, 10, wrong);
     }
 }

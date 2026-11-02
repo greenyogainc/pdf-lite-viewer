@@ -2,13 +2,14 @@
 
 `PdfLiteViewer.dll` has 100% line coverage and 100% branch coverage, as measured by
 coverlet across the test harnesses. Some of that coverage comes from injecting states
-production cannot reach; [the list below](#covered-only-by-injecting-a-state) names them.
+production cannot reach, and coverlet's branch figure has a known blind spot; both are
+described below.
 
 ## Measuring
 
 ```powershell
-tools\Measure-Coverage.ps1
-tools\Measure-Coverage.ps1 -MinLine 100 -MinBranch 100   # fail below these figures
+tools\Measure-Coverage.ps1                          # fails below 100%
+tools\Measure-Coverage.ps1 -MinLine 90 -MinBranch 80   # with lower floors
 ```
 
 The script builds Debug and merges five runs: `ChapterSmoke` over the fixtures, then
@@ -19,8 +20,8 @@ A full measurement needs:
 
 - An interactive desktop of at least 1280x900. HangProbe shows real windows and takes the
   foreground, so don't type during a run.
-- The `Microsoft Print to PDF` queue. Without it, the real-print check skips and
-  `PrintJob.SubmitToSpooler` stays uncovered.
+- The `Microsoft Print to PDF` queue. Without it the print checks can't run, so a coverage
+  run fails. A plain HangProbe run reports them as skipped, and its `PASS` line says how many.
 - The script's default of 600 pages. At 40 pages the sidebar never recycles a chapter
   container, so the echo-guard check fails. Sizes in between were not measured.
 
@@ -55,6 +56,10 @@ the code is correct.
 
 - **Not counted:** XAML-generated code under `obj/`, branches coverlet filters out as
   compiler-generated, `tools/`, the packaging scripts and `tools/make_icons.py`.
+- **Branch blind spot:** two conditions that jump to the same place appear to share one hit
+  count. In `MapBookmarks`, the jumps for "not a document node" and "an external node" both
+  report 10 hits, though only one of the two was taken each time. So 100% branch coverage
+  does not prove every arm of a compound condition like `a || b` was taken separately.
 - **Assertions:** the checks assert behaviour rather than just running lines. As a spot
   check, 17 product lines were broken by hand, one at a time, and the check meant for each
   one failed. That is a sample, not full mutation testing.
@@ -71,7 +76,8 @@ These checks verify what each fallback does, not that it can ever run.
 | `MainWindow.PagesPanel` returning null, and the fallbacks in `TopVisiblePage` and `VisibleRange` | `ApplyTemplate` on the presenter always builds the panel | Reflection swaps in an untemplated presenter |
 | `child is not FrameworkElement` in the same two methods | Item containers are always framework elements | Reflection injects a panel holding a bare `UIElement` |
 | `PanelOffsetScale` returning 1.0 | Called only once layout has run | Reflection calls it on a window with no layout |
-| `DisplayWidth > 0` false in `UpdateRenderedPagesAsync` | Page sizes are validated when the document opens | A slot's width is set to 0 by hand |
+| Last-resort catch in `MainWindow.OpenFileAsync` | Nothing in that block is expected to throw | A one-shot handler on `Title` throws |
+| The catch in `MainWindow.ShowPrintPreview` | A user can only press Print in a window that is on screen | A never-shown window sets itself as the owner |
 | Page-count mismatch in `PdfDoc.RequireConsistentSizes` | PDFium returns one size per page | Called directly with a mismatched list |
 | Colour conversion in `PdfDoc.ToBitmapSource` | PDFium returns BGRA | Called directly with an RGBA bitmap |
 | Last catch in `PrintJob.ResolveQueue` | A real server failing every call needs a dead spooler | Called with a null server |
@@ -88,9 +94,10 @@ These checks verify what each fallback does, not that it can ever run.
   confirms the real exe reports that, but `OnDpiChanged` is driven by
   `VisualTreeHelper.SetRootDpi` or a direct call. It has not been seen on real monitors with
   different scales.
-- **Physical printers.** The only real job goes to `Microsoft Print to PDF`. Everywhere else
+- **Physical printers.** The only real job goes to `Microsoft Print to PDF`. Elsewhere
   `PrintJob.Submit` is a throwing guard, because a preview window selects the default printer
-  on its own.
+  on its own. A few checks swap in a recorder for one job, which sends nothing and puts the
+  guard back afterwards.
 - **Print-server queues.** `PickQueue` is tested as logic only.
 - **The live support endpoint.** Every check uses a fake `HttpMessageHandler`.
 
@@ -101,6 +108,7 @@ These checks verify what each fallback does, not that it can ever run.
   807/808 branches, look there first.
 - **Dead library path:** PdfPig 0.1.15 never produces an `EmbeddedBookmarkNode`. It drops a
   GoToE outline item before `PdfDoc` sees it, so the exclusion in `MapBookmarks` only guards
-  against a future PdfPig.
+  against a future PdfPig. That test compiles to a plain boolean with no jump of its own, so
+  coverlet doesn't count it as a branch. No check has ever taken it.
 - **Leftover files:** HangProbe still writes `hangprobe-*.png` to `%TEMP%` for eyeballing, as
   the README describes, and does not delete them.

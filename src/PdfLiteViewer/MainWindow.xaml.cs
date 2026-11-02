@@ -1213,13 +1213,10 @@ public partial class MainWindow : Window
             if (ct.IsCancellationRequested) return;
             var item = _items[i];
             int targetPx = Math.Min(MaxRenderPixelWidth, (int)Math.Round(item.DisplayWidth * dpiScale));
-            if (item.DisplayWidth > 0 && item.DisplayHeight > 0)
-            {
-                // Rendered height follows the page's aspect ratio (PdfDoc renders by width).
-                double aspect = item.DisplayHeight / item.DisplayWidth;
-                if ((double)targetPx * targetPx * aspect > MaxRenderPixelArea)
-                    targetPx = (int)Math.Floor(Math.Sqrt(MaxRenderPixelArea / aspect));
-            }
+            // Rendered height follows the page's aspect ratio (PdfDoc renders by width).
+            double aspect = item.DisplayHeight / item.DisplayWidth;
+            if ((double)targetPx * targetPx * aspect > MaxRenderPixelArea)
+                targetPx = (int)Math.Floor(Math.Sqrt(MaxRenderPixelArea / aspect));
             if (targetPx < 8 || item.RenderedPixelWidth == targetPx)
                 continue;
 

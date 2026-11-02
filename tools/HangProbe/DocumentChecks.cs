@@ -279,6 +279,16 @@ internal static class DocumentChecks
             }
         }
 
+        // A parse that fails is not remembered either: the next caller parses again.
+        var failing = new PdfDoc(withOutline);
+        var bytes = WindowStateChecks.BytesOf(failing);
+        var original = (byte[])bytes.Clone();
+        Array.Clear(bytes);
+        bool parseFailed = Throws<Exception>(() => failing.GetChapters(CancellationToken.None, Untitled));
+        original.CopyTo(bytes, 0);
+        if (!parseFailed) wrong.Add("a document with its bytes cleared parsed");
+        else if (failing.GetChapters(CancellationToken.None, Untitled).Count != 2) wrong.Add("the call after a failed parse did not parse again");
+
         // Concurrent first callers share one parse.
         var shared = new PdfDoc(withOutline);
         var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ =>
@@ -289,7 +299,7 @@ internal static class DocumentChecks
         var none = empty.GetChapters(CancellationToken.None, Untitled);
         if (none.Count != 0) wrong.Add($"a document without an outline returned {none.Count} chapters");
         if (!ReferenceEquals(none, empty.GetChapters(CancellationToken.None, Untitled))) wrong.Add("the empty answer was not cached either");
-        return CheckKit.Tally(name, 7, wrong);
+        return CheckKit.Tally(name, 9, wrong);
     }
 
     private static bool Throws<T>(Action action) where T : Exception

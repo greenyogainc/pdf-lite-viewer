@@ -333,21 +333,29 @@ internal sealed class DialogDismisser : IDisposable
                 handling.LastAct = now;
                 return;
             }
+            Record(expectation, handling);
             Native.PostMessage(hwnd, Native.WmCommand, (IntPtr)IdOk, IntPtr.Zero);
         }
         else
         {
             int id = expectation.Action == DialogAction.PressCancel ? IdCancel : IdOk;
+            Record(expectation, handling);
             Native.PostMessage(hwnd, Native.WmCommand, (IntPtr)id, IntPtr.Zero);
         }
 
-        if (expectation is not null && !handling.Fired && handling.Attempts < 3)
-        {
-            handling.Fired = true;
-            expectation.Fire(new DialogRecord(handling.Caption, handling.Text));
-        }
         handling.Attempts++;
         handling.LastAct = now;
+    }
+
+    /// <summary>
+    /// Runs before the answer is posted: the modal call can return, and its check read the
+    /// expectation, as soon as the answer lands.
+    /// </summary>
+    private static void Record(DialogExpectation expectation, Handling handling)
+    {
+        if (handling.Fired) return;
+        handling.Fired = true;
+        expectation.Fire(new DialogRecord(handling.Caption, handling.Text));
     }
 
     /// <summary>Sets the file-name box to <paramref name="path"/>; false while the box does not exist or did not take it.</summary>
