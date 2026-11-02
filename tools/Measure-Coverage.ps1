@@ -148,8 +148,9 @@ $linePercent = [Math]::Round([double]$report.coverage.'line-rate' * 100, 2)
 $branchPercent = [Math]::Round([double]$report.coverage.'branch-rate' * 100, 2)
 $rows | Format-Table -AutoSize | Out-String | Write-Host
 Write-Host "TOTAL line $linePercent% ($($report.coverage.'lines-covered')/$($report.coverage.'lines-valid')), branch $branchPercent% ($($report.coverage.'branches-covered')/$($report.coverage.'branches-valid'))"
-$gaps | Set-Content (Join-Path $out "gaps.txt") -Encoding ascii
-Write-Host "Uncovered lines and partial branches: $(Join-Path $out 'gaps.txt')"
+[IO.File]::WriteAllLines((Join-Path $out "gaps.txt"), [string[]]$gaps)
+if ($gaps.Count -eq 0) { Write-Host "No uncovered lines or partial branches." }
+else { Write-Host "Uncovered lines and partial branches: $(Join-Path $out 'gaps.txt')" }
 
 if ($failures.Count -gt 0) { Write-Host ("Harness failures: " + ($failures -join "; ")); exit 1 }
 if ($linePercent -lt $MinLine) { Write-Host "Line coverage is below $MinLine%."; exit 1 }
