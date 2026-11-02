@@ -58,5 +58,28 @@ internal static class ProbeLog
     public static Task<bool> UntilContainsAsync(string marker, TimeSpan timeout) =>
         Poll.UntilAsync(() => Contains(marker), timeout);
 
+    /// <summary>The log's size in bytes (0 when it does not exist yet): a mark to read the entries written after it.</summary>
+    public static long Length()
+    {
+        try { return new FileInfo(Path).Length; }
+        catch (IOException) { return 0; }
+    }
+
+    /// <summary>Everything written after <paramref name="offset"/>.</summary>
+    public static string TextSince(long offset)
+    {
+        try
+        {
+            using var file = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            file.Seek(Math.Min(offset, file.Length), SeekOrigin.Begin);
+            using var reader = new StreamReader(file);
+            return reader.ReadToEnd();
+        }
+        catch (IOException)
+        {
+            return "";
+        }
+    }
+
     public static string NewMarker(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
 }

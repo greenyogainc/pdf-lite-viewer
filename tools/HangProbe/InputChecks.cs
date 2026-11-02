@@ -259,16 +259,30 @@ internal static class InputChecks
         return checks;
     }
 
-    private static Button ButtonNamed(DependencyObject root, string label)
+    /// <summary>
+    /// A toolbar or pane button by its name, tooltip or text. The logical tree is searched too,
+    /// because a window that was never shown has no visual tree yet but already owns its buttons.
+    /// </summary>
+    internal static Button ButtonNamed(DependencyObject root, string label)
     {
-        var button = AboutChecks.FindChildren<Button>(root).FirstOrDefault(b =>
+        var button = AboutChecks.FindChildren<Button>(root).Concat(FindLogical<Button>(root)).FirstOrDefault(b =>
             AutomationProperties.GetName(b) == label ||
             b.ToolTip as string == label ||
             b.Content as string == label);
         return button ?? throw new InvalidOperationException($"button '{label}' was not in the window");
     }
 
-    private static void Click(Button button) =>
+    internal static IEnumerable<T> FindLogical<T>(DependencyObject root) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is T match) yield return match;
+            if (child is DependencyObject nested)
+                foreach (var found in FindLogical<T>(nested)) yield return found;
+        }
+    }
+
+    internal static void Click(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
     private static async Task<List<Check>> DragAsync(MainWindow window, string stressPdf, Func<Task> settle)
@@ -325,7 +339,10 @@ internal static class InputChecks
     /// <see cref="DragEventArgs"/>'s constructor is internal. The probe builds the same
     /// args the drop target would see from a real file drag.
     /// </summary>
-    private static DragEventArgs MakeDrag(string[] files, RoutedEvent routed, DependencyObject target)
+    internal static DragEventArgs MakeDrag(string[] files, RoutedEvent routed, DependencyObject target) =>
+        MakeDrag(new DataObject(DataFormats.FileDrop, files), routed, target);
+
+    internal static DragEventArgs MakeDrag(IDataObject data, RoutedEvent routed, DependencyObject target)
     {
         var ctor = typeof(DragEventArgs).GetConstructor(
             BindingFlags.Instance | BindingFlags.NonPublic,
@@ -334,7 +351,7 @@ internal static class InputChecks
             modifiers: null) ?? throw new MissingMethodException("DragEventArgs constructor");
         var args = (DragEventArgs)ctor.Invoke(new object[]
         {
-            new DataObject(DataFormats.FileDrop, files),
+            data,
             DragDropKeyStates.None,
             DragDropEffects.All,
             target,
@@ -344,10 +361,10 @@ internal static class InputChecks
         return args;
     }
 
-    private static bool RaisePreviewKey(IInputElement source, Key key) =>
+    internal static bool RaisePreviewKey(IInputElement source, Key key) =>
         RaiseKey(source, key, Keyboard.PreviewKeyDownEvent);
 
-    private static bool RaiseKey(IInputElement source, Key key, RoutedEvent routed)
+    internal static bool RaiseKey(IInputElement source, Key key, RoutedEvent routed)
     {
         if (source is not Visual visual)
             throw new InvalidOperationException("key source is not a visual");
@@ -361,7 +378,7 @@ internal static class InputChecks
         return args.Handled;
     }
 
-    private static bool RaiseWheel(IInputElement source, int delta)
+    internal static bool RaiseWheel(IInputElement source, int delta)
     {
         var args = new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, delta)
         {
@@ -371,7 +388,7 @@ internal static class InputChecks
         return args.Handled;
     }
 
-    private static void SetCtrl(bool down)
+    internal static void SetCtrl(bool down)
     {
         // keybd_event posts to the foreground thread. GetKeyState (what
         // Keyboard.Modifiers reads) updates only once that thread pulls the
@@ -392,10 +409,10 @@ internal static class InputChecks
             window.RotateClockwise();
     }
 
-    private static int Page(MainWindow window) =>
+    internal static int Page(MainWindow window) =>
         int.TryParse(window.PageBox.Text, out int page) ? page : -1;
 
-    private static int ZoomPercent(MainWindow window) =>
+    internal static int ZoomPercent(MainWindow window) =>
         int.TryParse(window.ZoomText.Text.TrimEnd('%'), out int percent) ? percent : -1;
 
     [DllImport("user32.dll")]

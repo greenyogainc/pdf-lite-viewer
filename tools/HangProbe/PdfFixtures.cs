@@ -49,6 +49,35 @@ internal static class PdfFixtures
     internal static void WriteSinglePagePdf(string path, int widthPt, int heightPt) =>
         WriteDocument(path, 1, mediaBox: $"[0 0 {widthPt} {heightPt}]");
 
+    /// <summary>One page per entry, each with its own MediaBox (in points), and no outline.</summary>
+    internal static void WriteMixedSizePdf(string path, params (int Width, int Height)[] pages)
+    {
+        int count = pages.Length, content = count + 3, font = count + 4;
+        var objects = new List<string>
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            $"<< /Type /Pages /Kids [{string.Join(" ", Enumerable.Range(3, count).Select(n => $"{n} 0 R"))}] /Count {count} >>",
+        };
+        foreach (var (width, height) in pages)
+            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] /Contents {content} 0 R " +
+                        $"/Resources << /Font << /F1 {font} 0 R >> >> >>");
+        const string text = "BT /F1 24 Tf 72 72 Td (Big) Tj ET\n";
+        objects.Add($"<< /Length {Encoding.ASCII.GetByteCount(text)} >>\nstream\n{text}endstream");
+        objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+        Write(path, objects.ToArray());
+    }
+
+    /// <summary>A file from the repository's tools/fixtures folder, found by walking up from the probe's own folder.</summary>
+    internal static string RepoFixture(string name)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "tools", "fixtures", name);
+            if (File.Exists(candidate)) return candidate;
+        }
+        throw new FileNotFoundException($"fixture '{name}' was not found above {AppContext.BaseDirectory}");
+    }
+
     /// <summary>
     /// A document of <paramref name="pageCount"/> pages. <paramref name="pageEntries"/> is added
     /// to every page dictionary (a /CropBox, a /Rotate); <paramref name="outline"/> becomes the
