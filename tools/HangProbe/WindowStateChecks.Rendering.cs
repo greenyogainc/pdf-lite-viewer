@@ -45,7 +45,7 @@ internal static partial class WindowStateChecks
     /// Width alone does not bound a bitmap: a 200x5000 pt strip at the top zoom would ask for
     /// 3500x87500 pixels. The render is clamped to ~24M pixels, which for this strip is a
     /// 979-pixel-wide bitmap. A page so small at the lowest zoom that it would be under 8
-    /// pixels wide is skipped instead of rendered.
+    /// pixels wide is skipped instead of rendered, and so is a slot that has no width at all.
     /// </summary>
     private static async Task<Check> PixelBudgetsAsync(Docs docs, string name)
     {
@@ -87,6 +87,12 @@ internal static partial class WindowStateChecks
             await Task.Delay(300);
             if (tiny.Items[0].Image is not null || tiny.Items[0].RenderedPixelWidth != 0)
                 wrong.Add($"a page {tiny.Items[0].DisplayWidth:F1} DIP wide was rendered ({tiny.Items[0].RenderedPixelWidth}px)");
+
+            // A slot with no width (never the case once PdfDoc has validated the sizes) is skipped,
+            // not divided by.
+            tiny.Items[0].DisplayWidth = 0;
+            await tiny.UpdateRenderedPagesAsync();
+            if (tiny.Items[0].Image is not null) wrong.Add("a slot with no width was rendered");
 
             tiny.SetZoom(6);
             if (!await Poll.UntilAsync(() => tiny.Items[0].Image is not null, Patience)) wrong.Add("the tiny page never rendered once it was big enough");
