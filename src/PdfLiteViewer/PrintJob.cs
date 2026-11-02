@@ -29,12 +29,24 @@ internal static class PrintJob
     /// <summary>Letter, in device-independent pixels — used when the spooler tells us nothing.</summary>
     public static readonly Size FallbackPaper = new(816, 1056);
 
+    /// <summary>The one call that hands a document to the spooler. tools/HangProbe replaces it first thing, so no check can reach a real printer.</summary>
+    internal static Action<PrintQueue, PdfPrintPaginator, PrintTicket> Submit = SubmitToSpooler;
+
+    /// <summary>Test seam: tools/HangProbe substitutes a server that fails every call. Straight to the real one in production.</summary>
+    internal static Func<LocalPrintServer> NewServer = () => new LocalPrintServer();
+
+    /// <summary>Test seam for the default-printer lookup. Straight to the real one in production.</summary>
+    internal static Func<PrintQueue> DefaultQueue = LocalPrintServer.GetDefaultPrintQueue;
+
+    private static void SubmitToSpooler(PrintQueue queue, PdfPrintPaginator paginator, PrintTicket ticket) =>
+        PrintQueue.CreateXpsDocumentWriter(queue).Write(paginator, ticket);
+
     /// <summary>Queue names plus the default one. Call from a worker thread.</summary>
     public static (List<string> Names, string? Default) EnumerateQueues()
     {
         try
         {
-            using var server = new LocalPrintServer();
+            using var server = NewServer();
             // Every PrintQueue wraps a spooler handle, and so does the collection: take the
             // names and let them all go.
             var names = new List<string>();
@@ -43,7 +55,7 @@ internal static class PrintJob
                 using (queue) names.Add(queue.FullName);
 
             string? defaultName = null;
-            try { using var def = LocalPrintServer.GetDefaultPrintQueue(); defaultName = def.FullName; } catch { }
+            try { using var def = DefaultQueue(); defaultName = def.FullName; } catch { }
 
             return (names, defaultName);
         }
@@ -58,7 +70,7 @@ internal static class PrintJob
     {
         try
         {
-            using var server = new LocalPrintServer();
+            using var server = NewServer();
             using var queue = ResolveQueue(server, queueName);
             return queue is null ? FallbackPaper : PaperFor(queue.UserPrintTicket);
         }
@@ -72,13 +84,12 @@ internal static class PrintJob
     /// Media size in DIPs, matching what <c>PrintDialog.PrintableArea*</c> reports, so the
     /// preview and the printed sheet place the page image identically.
     /// </summary>
-    private static Size PaperFor(PrintTicket? ticket)
+    internal static Size PaperFor(PrintTicket? ticket)
     {
-        var media = ticket?.PageMediaSize;
-        if (media?.Width is not double w || media.Height is not double h || w < 50 || h < 50)
+        if (ticket?.PageMediaSize is not { Width: double w, Height: double h } || w < 50 || h < 50)
             return FallbackPaper;
 
-        return ticket?.PageOrientation is PageOrientation.Landscape or PageOrientation.ReverseLandscape
+        return ticket.PageOrientation is PageOrientation.Landscape or PageOrientation.ReverseLandscape
             ? new Size(h, w)
             : new Size(w, h);
     }
@@ -99,19 +110,18 @@ internal static class PrintJob
         var rotation = doc.Rotation;
         return RunOnStaThread(() =>
         {
-            using var server = new LocalPrintServer();
+            using var server = NewServer();
             using var queue = ResolveQueue(server, queueName)
                 ?? throw new InvalidOperationException($"Printer '{queueName}' is unavailable.");
 
-            var ticket = queue.UserPrintTicket ?? queue.DefaultPrintTicket ?? new PrintTicket();
+            var ticket = FirstTicket(() => queue.UserPrintTicket, () => queue.DefaultPrintTicket);
             ticket.CopyCount = copies;
             if (grayscale) ticket.OutputColor = OutputColor.Grayscale;
             if (draft) ticket.OutputQuality = OutputQuality.Draft;
 
             queue.CurrentJobSettings.Description = jobName;
 
-            var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-            writer.Write(new PdfPrintPaginator(doc, pages, PaperFor(ticket), rotation)
+            Submit(queue, new PdfPrintPaginator(doc, pages, PaperFor(ticket), rotation)
             {
                 CancellationToken = cancellationToken
             }, ticket);
@@ -138,7 +148,7 @@ internal static class PrintJob
         }, cancellationToken);
     }
 
-    private static PrintQueue? ResolveQueue(PrintServer server, string name)
+    internal static PrintQueue? ResolveQueue(PrintServer server, string name)
     {
         try { return server.GetPrintQueue(name); }
         catch { /* fall through to a full enumeration */ }
@@ -147,16 +157,31 @@ internal static class PrintJob
         {
             // The collection itself is left to the finalizer here: disposing it may dispose
             // the match being handed back, and this path only runs when GetPrintQueue failed.
-            PrintQueue? match = null;
-            foreach (var queue in server.GetPrintQueues(QueueTypes))
-            {
-                if (match is null && queue.FullName == name) match = queue;
-                else queue.Dispose();
-            }
-            return match;
+            return PickQueue(server.GetPrintQueues(QueueTypes), queue => queue.FullName, name);
         }
         catch { return null; }
     }
+
+    /// <summary>
+    /// The first queue called <paramref name="name"/>, with every other one disposed. Only a
+    /// print-server connection ever gets here, so it takes the queues as data: tools/HangProbe
+    /// can check it on a machine that has no such connection.
+    /// </summary>
+    internal static T? PickQueue<T>(IEnumerable<T> queues, Func<T, string> nameOf, string name)
+        where T : class, IDisposable
+    {
+        T? match = null;
+        foreach (var queue in queues)
+        {
+            if (match is null && nameOf(queue) == name) match = queue;
+            else queue.Dispose();
+        }
+        return match;
+    }
+
+    /// <summary>The queue's user ticket, else its default one, else a blank one.</summary>
+    internal static PrintTicket FirstTicket(Func<PrintTicket?> user, Func<PrintTicket?> queueDefault) =>
+        user() ?? queueDefault() ?? new PrintTicket();
 
     /// <summary>
     /// XPS serialization needs an STA thread, and every visual it serializes must belong to

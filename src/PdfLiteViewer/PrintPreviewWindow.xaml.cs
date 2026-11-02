@@ -60,13 +60,15 @@ public partial class PrintPreviewWindow : Window
         foreach (var name in names)
             PrinterBox.Items.Add(name);
 
-        PrinterBox.SelectedItem = defaultName is not null && names.Contains(defaultName)
-            ? defaultName
-            : names.FirstOrDefault();
+        PrinterBox.SelectedItem = PickPrinter(names, defaultName);
 
         UpdatePrintEnabled();
         await UpdatePaperSizeAsync();
     }
+
+    /// <summary>The default printer when the list has it, otherwise the first one (null for an empty list).</summary>
+    internal static string? PickPrinter(IReadOnlyList<string> names, string? defaultName) =>
+        defaultName is not null && names.Contains(defaultName) ? defaultName : names.FirstOrDefault();
 
     private async Task UpdatePaperSizeAsync()
     {
@@ -175,7 +177,7 @@ public partial class PrintPreviewWindow : Window
             // ~1300px is plenty for an on-screen preview at any window size.
             var render = RenderOverride ?? _doc.RenderPageAsync;
             var bmp = await render(pdfIndex, 1300, ct);
-            if (generation != _showGeneration || ct.IsCancellationRequested) return;
+            if (generation != _showGeneration) return;
 
             if (grayscale)
             {

@@ -2,6 +2,7 @@ bin/
 obj/
 packaging/out/
 dist/
+coverage/
 *.user
 .vs/
 __pycache__/

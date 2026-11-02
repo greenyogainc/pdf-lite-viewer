@@ -103,6 +103,7 @@ dotnet run --project src\PdfLiteViewer
 ```powershell
 dotnet run --project tools\HangProbe -- 3000        # UI responsiveness + layout + regressions
 dotnet run --project tools\ChapterSmoke -- tools\fixtures\*.pdf   # the tool expands the glob itself
+tools\Measure-Coverage.ps1                          # line and branch coverage across all of the above
 ```
 
 `HangProbe` is the regression guard against frozen-window bugs. It generates a
@@ -114,7 +115,13 @@ the run. It then asserts the things a fast-but-wrong viewer would get wrong — 
 centred, scrollbar spanning the document, go-to-page landing on the right page, pages
 actually rendering — and writes a PNG of each view mode to `%TEMP%\hangprobe-*.png`.
 
-It needs an interactive desktop session, since it really shows windows.
+It needs an interactive desktop session, since it really shows windows and takes the
+foreground, so don't type during a run. No HangProbe run reaches a physical printer:
+print submission is blocked at startup, except that `--real-print-to-pdf` sends one job
+to `Microsoft Print to PDF`. Native dialogs the viewer opens are answered automatically.
+
+[docs/coverage.md](docs/coverage.md) has the coverage figures, including which paths are
+only reached by injecting a state and what has not been verified.
 
 ## Distribution
 

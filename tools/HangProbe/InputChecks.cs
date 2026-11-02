@@ -14,15 +14,16 @@ namespace HangProbe;
 /// <summary>
 /// Drives keyboard, pointer and drag input on the live window. The handlers stay private;
 /// the probe raises the same routed events the window already listens for.
-/// Ctrl shortcuts read <see cref="Keyboard.Modifiers"/>, which follows the real keyboard,
-/// so those cases hold the Control key down for the duration of the event.
+/// Ctrl shortcuts read <see cref="Keyboard.Modifiers"/>, so those cases mark Control as down
+/// in this thread's own key table for the duration of the event (see <see cref="SetCtrl"/>).
 /// </summary>
 internal static class InputChecks
 {
-    // Left Ctrl, not VK_CONTROL. WPF asks GetKeyState for LeftCtrl and RightCtrl
+    // Both, as a real key press sets them. WPF asks GetKeyState for LeftCtrl and RightCtrl
     // specifically; the generic VK_CONTROL bit does not light those up.
+    private const byte VkControl = 0x11;
     private const byte VkLeftCtrl = 0xA2;
-    private const uint KeyeventfKeyup = 0x0002;
+    private const byte KeyIsDown = 0x80;
 
     public static async Task<List<Check>> RunAsync(MainWindow window, string stressPdf, Func<Task> settle)
     {
@@ -83,9 +84,8 @@ internal static class InputChecks
         // Chapter tree keeps its own navigation while it has focus.
         window.SetChapterPaneVisible(true);
         await settle();
-        window.ChapterTree.Focus();
-        await settle();
-        bool treeKept = window.ChapterTree.IsKeyboardFocusWithin
+        bool treeFocused = await Foreground.FocusAsync(window, window.ChapterTree, () => window.ChapterTree.IsKeyboardFocusWithin);
+        bool treeKept = treeFocused
                         && !RaisePreviewKey(window, Key.Left)
                         && Page(window) == page;
         checks.Add(new Check("keys: chapter tree keeps Left", treeKept,
@@ -259,16 +259,30 @@ internal static class InputChecks
         return checks;
     }
 
-    private static Button ButtonNamed(DependencyObject root, string label)
+    /// <summary>
+    /// A toolbar or pane button by its name, tooltip or text. The logical tree is searched too,
+    /// because a window that was never shown has no visual tree yet but already owns its buttons.
+    /// </summary>
+    internal static Button ButtonNamed(DependencyObject root, string label)
     {
-        var button = AboutChecks.FindChildren<Button>(root).FirstOrDefault(b =>
+        var button = AboutChecks.FindChildren<Button>(root).Concat(FindLogical<Button>(root)).FirstOrDefault(b =>
             AutomationProperties.GetName(b) == label ||
             b.ToolTip as string == label ||
             b.Content as string == label);
         return button ?? throw new InvalidOperationException($"button '{label}' was not in the window");
     }
 
-    private static void Click(Button button) =>
+    internal static IEnumerable<T> FindLogical<T>(DependencyObject root) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is T match) yield return match;
+            if (child is DependencyObject nested)
+                foreach (var found in FindLogical<T>(nested)) yield return found;
+        }
+    }
+
+    internal static void Click(Button button) =>
         button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
     private static async Task<List<Check>> DragAsync(MainWindow window, string stressPdf, Func<Task> settle)
@@ -325,7 +339,10 @@ internal static class InputChecks
     /// <see cref="DragEventArgs"/>'s constructor is internal. The probe builds the same
     /// args the drop target would see from a real file drag.
     /// </summary>
-    private static DragEventArgs MakeDrag(string[] files, RoutedEvent routed, DependencyObject target)
+    internal static DragEventArgs MakeDrag(string[] files, RoutedEvent routed, DependencyObject target) =>
+        MakeDrag(new DataObject(DataFormats.FileDrop, files), routed, target);
+
+    internal static DragEventArgs MakeDrag(IDataObject data, RoutedEvent routed, DependencyObject target)
     {
         var ctor = typeof(DragEventArgs).GetConstructor(
             BindingFlags.Instance | BindingFlags.NonPublic,
@@ -334,7 +351,7 @@ internal static class InputChecks
             modifiers: null) ?? throw new MissingMethodException("DragEventArgs constructor");
         var args = (DragEventArgs)ctor.Invoke(new object[]
         {
-            new DataObject(DataFormats.FileDrop, files),
+            data,
             DragDropKeyStates.None,
             DragDropEffects.All,
             target,
@@ -344,10 +361,10 @@ internal static class InputChecks
         return args;
     }
 
-    private static bool RaisePreviewKey(IInputElement source, Key key) =>
+    internal static bool RaisePreviewKey(IInputElement source, Key key) =>
         RaiseKey(source, key, Keyboard.PreviewKeyDownEvent);
 
-    private static bool RaiseKey(IInputElement source, Key key, RoutedEvent routed)
+    internal static bool RaiseKey(IInputElement source, Key key, RoutedEvent routed)
     {
         if (source is not Visual visual)
             throw new InvalidOperationException("key source is not a visual");
@@ -361,7 +378,7 @@ internal static class InputChecks
         return args.Handled;
     }
 
-    private static bool RaiseWheel(IInputElement source, int delta)
+    internal static bool RaiseWheel(IInputElement source, int delta)
     {
         var args = new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, delta)
         {
@@ -371,18 +388,16 @@ internal static class InputChecks
         return args.Handled;
     }
 
-    private static void SetCtrl(bool down)
+    internal static void SetCtrl(bool down)
     {
-        // keybd_event posts to the foreground thread. GetKeyState (what
-        // Keyboard.Modifiers reads) updates only once that thread pulls the
-        // message. Activate first so the message lands on this UI thread, then
-        // pump it. Scan code 0x1D is Left Ctrl; the generic VK_CONTROL bit is
-        // not what WPF checks.
-        Application.Current?.MainWindow?.Activate();
-        keybd_event(VkLeftCtrl, 0x1D, down ? 0u : KeyeventfKeyup, UIntPtr.Zero);
-        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
-            static () => { },
-            System.Windows.Threading.DispatcherPriority.Input);
+        // Keyboard.Modifiers reads GetKeyState, which answers from this thread's own key table.
+        // Writing that table needs no focus and presses nothing. A real key press (keybd_event)
+        // only reaches this thread while the probe's window holds the foreground, and also goes
+        // to whatever else is on the desktop.
+        var keys = new byte[256];
+        if (!GetKeyboardState(keys)) throw new System.ComponentModel.Win32Exception();
+        keys[VkControl] = keys[VkLeftCtrl] = down ? KeyIsDown : (byte)0;
+        if (!SetKeyboardState(keys)) throw new System.ComponentModel.Win32Exception();
     }
 
     private static void RestoreRotation(MainWindow window, PDFtoImage.PdfRotation rotation)
@@ -392,12 +407,15 @@ internal static class InputChecks
             window.RotateClockwise();
     }
 
-    private static int Page(MainWindow window) =>
+    internal static int Page(MainWindow window) =>
         int.TryParse(window.PageBox.Text, out int page) ? page : -1;
 
-    private static int ZoomPercent(MainWindow window) =>
+    internal static int ZoomPercent(MainWindow window) =>
         int.TryParse(window.ZoomText.Text.TrimEnd('%'), out int percent) ? percent : -1;
 
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetKeyboardState(byte[] keys);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetKeyboardState(byte[] keys);
 }

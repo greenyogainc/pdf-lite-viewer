@@ -25,10 +25,31 @@ namespace HangProbe;
 internal static class Program
 {
     private static int _exitCode;
+    private static bool _coverage;
+
+    /// <summary>See <see cref="CheckKit.Skipped"/>.</summary>
+    internal static bool SkipsAreFailures { get; private set; }
+
+    /// <summary>Answers the process's native dialogs; checks register what they expect through it.</summary>
+    internal static DialogDismisser Dialogs { get; private set; } = null!;
 
     [STAThread]
     internal static int Main(string[] args)
     {
+        var realSubmit = PrintJob.Submit;
+
+        // Before any window exists: this machine's default printer is a physical one, and the
+        // preview window selects it on its own.
+        PrintJob.Submit = (_, _, _) =>
+            throw new InvalidOperationException("HangProbe must never reach a real print queue.");
+
+        // Before the first window too: a modal dialog nothing answers would hang the run.
+        Dialogs = new DialogDismisser();
+
+        // Instrumented code is slower, so stall budgets are reported but do not fail the run.
+        _coverage = args.Contains("--coverage");
+        SkipsAreFailures = _coverage || args.Contains("--real-print-to-pdf");
+
         int pages = args.Length > 0 && int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)
             ? Math.Clamp(n, 1, 20_000)
             : 600;
@@ -49,11 +70,15 @@ internal static class Program
             try
             {
                 if (args.Contains("--about-check"))
-                {
-                    var checks = await AboutChecks.RunAsync();
-                    foreach (var check in checks) Console.WriteLine(check);
-                    _exitCode = checks.All(check => check.Ok) ? 0 : 1;
-                }
+                    _exitCode = ReportChecks(await AboutChecks.RunAsync());
+                else if (args.Contains("--startup-check"))
+                    _exitCode = ReportChecks(await StartupChecksAsync(args));
+                else if (args.Contains("--window-check"))
+                    _exitCode = ReportChecks(await OnlyAsync(WindowStateChecks.RunAsync));
+                else if (args.Contains("--real-print-to-pdf"))
+                    _exitCode = ReportChecks(await RealPrintCheck.RunAsync(realSubmit));
+                else if (args.Contains("--print-check"))
+                    _exitCode = ReportChecks(await OnlyAsync(PrintChecks.RunAsync));
                 else _exitCode = await RunAsync(pages, pdf);
             }
             catch (Exception ex)
@@ -68,6 +93,7 @@ internal static class Program
         }, DispatcherPriority.ApplicationIdle);
 
         app.Run();
+        Dialogs.Dispose();
 
         // Guid-named per run, so nothing overwrites it next time: remove it here or every
         // run leaves another copy (up to ~19 MB at the 20k-page cap) behind in %TEMP%.
@@ -302,6 +328,12 @@ internal static class Program
         checks.AddRange(await ContractChecks.RunAsync(window, doc, watch.SettleAsync));
         checks.AddRange(await AboutChecks.RunAsync());
         checks.AddRange(await InputChecks.RunAsync(window, pdf, watch.SettleAsync));
+        checks.AddRange(await SupportClientChecks.RunAsync());
+        checks.AddRange(await AppChecks.RunAsync());
+        checks.AddRange(await DocumentChecks.RunAsync());
+        checks.AddRange(await PrintSpoolerChecks.RunAsync());
+        checks.AddRange(await WindowStateChecks.RunAsync());
+        checks.AddRange(await PrintChecks.RunAsync());
         await CaptureModesAsync(window, pages, watch.SettleAsync);
 
         window.Close();
@@ -331,7 +363,7 @@ internal static class Program
         {
             return new List<Check>
             {
-                new("printer list populated", true, "no printers installed on this machine — skipped"),
+                Skipped("printer list populated", "no printers installed on this machine"),
             };
         }
 
@@ -447,34 +479,120 @@ internal static class Program
 
     private static TimeSpan Ms(int ms) => TimeSpan.FromMilliseconds(ms);
 
-    private static int Report(List<Stall> results, List<Check> checks)
+    /// <summary>Runs one check group on its own (--window-check, --print-check), for working on that group without the stall scenarios.</summary>
+    private static Task<List<Check>> OnlyAsync(Func<Task<List<Check>>> group) => group();
+
+    /// <summary>Checks every mode ends with: the print guard is still in place, and no dialog went unplanned.</summary>
+    private static void AddFinalChecks(List<Check> checks)
     {
-        Console.WriteLine();
-        Console.WriteLine($"{"scenario",-38} {"elapsed",10} {"worst stall",13} {"budget",9}  result");
-        Console.WriteLine(new string('-', 88));
-
-        int failed = 0;
-        foreach (var r in results)
+        const string guard = "print guard blocks the spooler call";
+        checks.Add(CheckKit.Run(guard, () =>
         {
-            if (r.Failed) failed++;
-            Console.WriteLine($"{r.Scenario,-38} {r.Duration.TotalMilliseconds,8:F0}ms " +
-                              $"{r.WorstStall.TotalMilliseconds,11:F0}ms {r.Budget.TotalMilliseconds,7:F0}ms  " +
-                              (r.Failed ? "HANG" : "ok"));
-        }
+            bool inPlace = GuardInPlace();
+            return new Check(guard, inPlace, inPlace ? "PrintJob.Submit is the throwing guard" : "PrintJob.Submit returned: the guard is not in place");
+        }));
+        checks.AddRange(Dialogs.FinalChecks());
+    }
+
+    /// <summary>
+    /// The production startup path: the first document on the command line is picked up by
+    /// App.ApplyStartupArguments and opened by MainWindow_Loaded, with nothing from the probe.
+    /// </summary>
+    private static async Task<List<Check>> StartupChecksAsync(string[] args)
+    {
+        int flag = Array.IndexOf(args, "--startup-check");
+        if (flag + 1 >= args.Length)
+            return new List<Check> { new("startup: document argument opens the document", false,
+                "--startup-check needs the PDF path as the next argument") };
+
+        var expected = args[flag + 1];
+        var window = (MainWindow)Application.Current.MainWindow;
+        var timeout = TimeSpan.FromSeconds(30);
+        bool opened = await Poll.UntilAsync(() => window.Document is not null, timeout);
+        var document = window.Document;
+
+        var checks = new List<Check>
+        {
+            new("startup: App picks the document argument",
+                ((App)Application.Current).StartupFile == expected,
+                $"StartupFile '{((App)Application.Current).StartupFile}', argument '{expected}'"),
+            new("startup: document argument opens the document",
+                opened && Path.GetFullPath(document!.FilePath) == Path.GetFullPath(expected),
+                opened ? $"opened '{document!.FilePath}', {document.PageCount} page(s)"
+                       : $"window.Document was not set within {timeout.TotalSeconds:F0} s"),
+            new("startup: title names the file",
+                opened && window.Title.Contains(Path.GetFileName(expected)),
+                $"title '{window.Title}'"),
+        };
+        return checks;
+    }
+
+    /// <summary>Prints a plain list of checks (the modes that run no stall scenarios) and returns the exit code.</summary>
+    private static int ReportChecks(List<Check> checks)
+    {
+        AddFinalChecks(checks);
+        Console.WriteLine();
+        Console.WriteLine("checks");
+        Console.WriteLine(new string('-', 88));
+        int failed = PrintCheckLines(checks);
 
         Console.WriteLine();
-        Console.WriteLine("layout checks");
-        Console.WriteLine(new string('-', 88));
+        Console.WriteLine(failed == 0
+            ? $"PASS — {checks.Count} checks{SkippedNote(checks)}."
+            : $"FAIL — {failed} of {checks.Count} checks failed.");
+        return failed == 0 ? 0 : 1;
+    }
+
+    private static string SkippedNote(IEnumerable<Check> checks)
+    {
+        int skipped = CountSkipped(checks);
+        return skipped == 0 ? "" : $" ({skipped} skipped)";
+    }
+
+    /// <summary>Prints one line per check and returns how many failed.</summary>
+    private static int PrintCheckLines(IEnumerable<Check> checks)
+    {
+        int failed = 0;
         foreach (var c in checks)
         {
             if (!c.Ok) failed++;
             Console.WriteLine($"{(c.Ok ? "ok  " : "FAIL")} {c.Name,-38} {c.Detail}");
         }
+        return failed;
+    }
+
+    private static int Report(List<Stall> results, List<Check> checks)
+    {
+        AddFinalChecks(checks);
+
+        Console.WriteLine();
+        Console.WriteLine($"{"scenario",-38} {"elapsed",10} {"worst stall",13} {"budget",9}  result");
+        Console.WriteLine(new string('-', 88));
+
+        int failed = 0, ignored = 0;
+        foreach (var r in results)
+        {
+            if (r.Failed)
+            {
+                if (_coverage) ignored++;
+                else failed++;
+            }
+            Console.WriteLine($"{r.Scenario,-38} {r.Duration.TotalMilliseconds,8:F0}ms " +
+                              $"{r.WorstStall.TotalMilliseconds,11:F0}ms {r.Budget.TotalMilliseconds,7:F0}ms  " +
+                              (r.Failed ? (_coverage ? "HANG (ignored: --coverage)" : "HANG") : "ok"));
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("layout checks");
+        Console.WriteLine(new string('-', 88));
+        failed += PrintCheckLines(checks);
 
         int total = results.Count + checks.Count;
         Console.WriteLine();
         Console.WriteLine(failed == 0
-            ? $"PASS — {total} checks, no UI-thread stall over budget."
+            ? ignored == 0
+                ? $"PASS — {total} checks{SkippedNote(checks)}, no UI-thread stall over budget."
+                : $"PASS — {total} checks{SkippedNote(checks)}; {ignored} stall(s) over budget ignored (--coverage)."
             : $"FAIL — {failed} of {total} checks failed.");
         return failed == 0 ? 0 : 1;
     }

@@ -17,10 +17,9 @@ public sealed class PdfDoc
 
     private readonly byte[] _bytes;
     private readonly object _chaptersGate = new();
-    // First-completed parse wins; every other caller (concurrent probe, late sidebar
-    // open, etc.) blocks on .Value and gets the same list. ExecutionAndPublication keeps
-    // a duplicate parse from ever racing the first one.
-    private Lazy<List<ChapterItem>>? _chaptersLazy;
+    // Set only by a parse that ran to the end, so a cancelled or failed one is retried by the
+    // next caller instead of being replayed to every caller after it.
+    private List<ChapterItem>? _chapters;
 
     public string FilePath { get; }
     public int PageCount { get; }
@@ -44,17 +43,28 @@ public sealed class PdfDoc
             throw new UnreadablePagesException("The document contains no pages.");
         var sizes = PDFtoImage.Conversion.GetPageSizes(_bytes);
         PageSizes = sizes.Select(s => ((double)s.Width, (double)s.Height)).ToList();
+        RequireConsistentSizes(PageCount, PageSizes);
+    }
+
+    /// <summary>
+    /// Separate from the constructor so tools/HangProbe can reach rejections that PDFium
+    /// itself never produces for a file it opens.
+    /// </summary>
+    internal static void RequireConsistentSizes(int pageCount, IReadOnlyList<(double Width, double Height)> sizes)
+    {
         // Every layout indexes PageSizes by page number up to PageCount - 1, and the two come
         // from separate PDFium calls: pin the invariant here rather than in a layout pass.
-        if (PageSizes.Count != PageCount)
-            throw new UnreadablePagesException($"The document reports {PageCount} pages but {PageSizes.Count} page sizes.");
-        // A PDF whose MediaBox collapses to 0 on either axis is malformed but legal. The
-        // layouts (FitZoom, SizeItems) divide by width and height, so a 0×0 page propagates
-        // NaN/Infinity into the WPF extent pipeline and breaks the viewport. Refuse it here
-        // so the existing "could not open" path reports the malformed file.
-        for (int i = 0; i < PageSizes.Count; i++)
+        if (sizes.Count != pageCount)
+            throw new UnreadablePagesException($"The document reports {pageCount} pages but {sizes.Count} page sizes.");
+        // A page that is zero or negative on either axis is malformed but legal. PDFium swaps
+        // an empty MediaBox for Letter, so the reachable trigger is a CropBox that is disjoint
+        // from the MediaBox or only touches its edge. The layouts (FitZoom, SizeItems) divide
+        // by width and height, so such a page propagates NaN/Infinity into the WPF extent
+        // pipeline and breaks the viewport. Refuse it here so the existing "could not open"
+        // path reports the malformed file.
+        for (int i = 0; i < sizes.Count; i++)
         {
-            var (w, h) = PageSizes[i];
+            var (w, h) = sizes[i];
             if (w <= 0 || h <= 0)
                 throw new UnreadablePagesException($"Page {i + 1} has non-positive size ({w:F2} × {h:F2} points).");
         }
@@ -164,29 +174,15 @@ public sealed class PdfDoc
     /// </param>
     public List<ChapterItem> GetChapters(CancellationToken ct, string untitledFallback)
     {
-        // Fast path: the parse has already been completed; even a torn read here is fine,
-        // because every later reader of the field will see at least this lazy.
-        var lazy = _chaptersLazy;
-        if (lazy is null)
+        // Concurrent callers queue on the gate and share the first completed parse. The parse
+        // runs under the gate with the token of whichever caller won it, so a "switch documents
+        // quickly" sequence that cancels mid-parse still aborts via BuildChapters' phase
+        // checks. The next caller then parses again with its own token.
+        lock (_chaptersGate)
         {
-            // Double-check inside the lock; the field is assigned under the gate so a
-            // racing reader either sees our new Lazy or our predecessor's Lazy — never a
-            // freshly-created one that has yet to do work. The whole point of the lazy is
-            // to ensure the parse runs at most once even with concurrent first callers.
-            // ct is captured from the first thread that wins the lock: that thread's
-            // ct gets the per-phase checks during the parse, so a "switch documents
-            // quickly" sequence that cancels mid-parse still aborts via the phase checks.
-            // Concurrent later callers observe the cached list once Value returns.
-            lock (_chaptersGate)
-            {
-                lazy = _chaptersLazy ??= new Lazy<List<ChapterItem>>(
-                    () => BuildChapters(ct, untitledFallback),
-                    LazyThreadSafetyMode.ExecutionAndPublication);
-            }
+            ct.ThrowIfCancellationRequested();
+            return _chapters ??= BuildChapters(ct, untitledFallback);
         }
-
-        ct.ThrowIfCancellationRequested();
-        return lazy.Value;
     }
 
     private List<ChapterItem> BuildChapters(CancellationToken ct, string untitledFallback)
@@ -216,7 +212,7 @@ public sealed class PdfDoc
         {
             ct.ThrowIfCancellationRequested();
 
-            var title = node.Title?.Trim();
+            var title = node.Title.Trim();
             if (string.IsNullOrEmpty(title))
                 title = untitledFallback;
 
@@ -243,8 +239,7 @@ public sealed class PdfDoc
             };
             output.Add(item);
 
-            if (node.Children is { Count: > 0 } children)
-                MapBookmarks(children, item, depth + 1, item.Children, ref order, ct, untitledFallback);
+            MapBookmarks(node.Children, item, depth + 1, item.Children, ref order, ct, untitledFallback);
         }
     }
 
@@ -256,7 +251,7 @@ public sealed class PdfDoc
     /// after this returns is safe. An intermediate managed copy would only add a per-render
     /// allocation that WIC then throws away.
     /// </summary>
-    private static BitmapSource ToBitmapSource(SKBitmap bmp)
+    internal static BitmapSource ToBitmapSource(SKBitmap bmp)
     {
         // PDFtoImage hands back whatever format the converter chose; normalize to BGRA so
         // the byte order always matches WPF's Pbgra32. The temp bitmap owns its own pixels,

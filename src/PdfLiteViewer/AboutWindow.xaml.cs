@@ -35,15 +35,24 @@ public partial class AboutWindow : Window
         Closed += (_, _) => { _closed = true; _lifetime.Cancel(); _lifetime.Dispose(); };
     }
 
+    /// <summary>
+    /// Test seam: tools/HangProbe records the launch instead of opening a browser. Straight
+    /// to <see cref="Process.Start(ProcessStartInfo)"/> in production.
+    /// </summary>
+    internal static Func<ProcessStartInfo, Process?> Launch = Process.Start;
+
     /// <summary>Marketing version of the running assembly (no build metadata).</summary>
-    internal static string AppVersion()
+    internal static string AppVersion() => AppVersion(Assembly.GetExecutingAssembly());
+
+    internal static string AppVersion(Assembly assembly)
     {
-        var informational = Assembly.GetExecutingAssembly()
+        var informational = assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         if (!string.IsNullOrEmpty(informational))
             return informational.Split('+')[0];
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        return v is null ? "?" : $"{v.Major}.{v.Minor}.{v.Build}";
+        var v = assembly.GetName().Version;
+        // Build is -1 when the assembly version has only two parts.
+        return v is null ? "?" : $"{v.Major}.{v.Minor}.{Math.Max(v.Build, 0)}";
     }
 
     private static string OpensInBrowserTooltip(string url) =>
@@ -64,11 +73,13 @@ public partial class AboutWindow : Window
         LicenseToggle.Content = Strings.Get(show ? "AboutHideLicense" : "AboutViewLicense");
     }
 
-    private static string LoadLicenseText()
+    private static string LoadLicenseText() => ReadLicense(Assembly.GetExecutingAssembly(), "PdfLiteViewer.LICENSE");
+
+    internal static string ReadLicense(Assembly assembly, string resourceName)
     {
         try
         {
-            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("PdfLiteViewer.LICENSE");
+            using var stream = assembly.GetManifestResourceStream(resourceName);
             if (stream is not null)
                 return new StreamReader(stream).ReadToEnd();
         }
@@ -180,13 +191,13 @@ public partial class AboutWindow : Window
         SupportSubjectInput.Focus();
     }
     /// <summary>The single exit to the OS shell; only plain web URLs pass.</summary>
-    private static void OpenExternal(string url)
+    internal static void OpenExternal(string url)
     {
         if (!SupportNavigationPolicy.IsSafeExternalUrl(url))
             return;
         try
         {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            Launch(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex)
         {

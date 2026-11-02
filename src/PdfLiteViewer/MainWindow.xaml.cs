@@ -356,7 +356,7 @@ public partial class MainWindow : Window
         // Size the pages before the panel ever sees them. Handed a list of zero-height items,
         // a virtualizing panel concludes the whole document fits on screen and realizes every
         // page — which is the very cost virtualization is here to avoid.
-        SizeItems();
+        SizeItems(_doc);
 
         PagesHost.ItemsSource = _items;
         _pagesPanel = null;              // a new panel is built for the new ItemsPanel template
@@ -366,41 +366,35 @@ public partial class MainWindow : Window
 
     // ---------- Zoom & layout ----------
 
-    private double FitZoom()
+    private double FitZoom(PdfDoc doc)
     {
-        if (_doc is null) return 1.0;
-
         double viewW = Math.Max(100, Scroller.ViewportWidth > 0 ? Scroller.ViewportWidth : Scroller.ActualWidth);
         double viewH = Math.Max(100, Scroller.ViewportHeight > 0 ? Scroller.ViewportHeight : Scroller.ActualHeight);
 
         // Page sizes are in points; 100% zoom maps 72pt -> 96px.
-        double maxW = _items.Count > 0
-            ? _items.Max(it => _doc.GetDisplaySize(it.PageIndex).Width) * 96.0 / 72.0
-            : 100;
+        double maxW = _items.Max(it => doc.GetDisplaySize(it.PageIndex).Width) * 96.0 / 72.0;
 
         if (_mode == ViewMode.Continuous)
             return Math.Max(0.05, (viewW - PageMargin - 24) / maxW);
 
         // Single / facing: fit the whole page group inside the viewport.
-        double groupW = _items.Sum(it => _doc.GetDisplaySize(it.PageIndex).Width * 96.0 / 72.0 + PageMargin);
-        double maxH = _items.Max(it => _doc.GetDisplaySize(it.PageIndex).Height) * 96.0 / 72.0;
+        double groupW = _items.Sum(it => doc.GetDisplaySize(it.PageIndex).Width * 96.0 / 72.0 + PageMargin);
+        double maxH = _items.Max(it => doc.GetDisplaySize(it.PageIndex).Height) * 96.0 / 72.0;
         double zw = (viewW - 24) / groupW;
         double zh = (viewH - PageMargin - 4) / maxH;
         return Math.Max(0.05, Math.Min(zw, zh));
     }
 
     /// <summary>Applies the current zoom to every page slot and totals the content height.</summary>
-    private void SizeItems()
+    private void SizeItems(PdfDoc doc)
     {
-        if (_doc is null) return;
-
         if (_fitToView)
-            _zoom = FitZoom();
+            _zoom = FitZoom(doc);
 
         _contentHeight = 0;
         foreach (var it in _items)
         {
-            var (w, h) = _doc.GetDisplaySize(it.PageIndex);
+            var (w, h) = doc.GetDisplaySize(it.PageIndex);
             it.DisplayWidth = w * 96.0 / 72.0 * _zoom;
             it.DisplayHeight = h * 96.0 / 72.0 * _zoom;
             _contentHeight += it.DisplayHeight + PageMargin;
@@ -411,7 +405,7 @@ public partial class MainWindow : Window
     {
         if (_doc is null) return;
 
-        SizeItems();
+        SizeItems(_doc);
 
         ZoomText.Text = $"{Math.Round(_zoom * 100)}%";
         PageBox.Text = (_currentPage + 1).ToString();
@@ -442,12 +436,6 @@ public partial class MainWindow : Window
     /// </summary>
     private void ScrollToPage(int page)
     {
-        if (_mode != ViewMode.Continuous)
-        {
-            Scroller.ScrollToVerticalOffset(OffsetOfPage(page));
-            return;
-        }
-
         for (int pass = 0; pass < 6; pass++)
         {
             Scroller.UpdateLayout();
@@ -493,7 +481,7 @@ public partial class MainWindow : Window
     private Panel? PagesPanel()
     {
         if (_pagesPanel is not null) return _pagesPanel;
-        if (Scroller.Content is not ItemsPresenter presenter) return null;
+        var presenter = Presenter;
         presenter.ApplyTemplate();
         if (VisualTreeHelper.GetChildrenCount(presenter) == 0) return null;
         return _pagesPanel = VisualTreeHelper.GetChild(presenter, 0) as Panel;
@@ -593,7 +581,7 @@ public partial class MainWindow : Window
 
     // ---------- Navigation ----------
 
-    internal void GoToPage(int page, bool scroll = true, bool syncChapters = true)
+    internal void GoToPage(int page, bool syncChapters = true)
     {
         if (_doc is null) return;
         page = Math.Clamp(page, 0, _doc.PageCount - 1);
@@ -602,7 +590,7 @@ public partial class MainWindow : Window
         {
             _currentPage = page;
             PageBox.Text = (page + 1).ToString();
-            if (scroll) ScrollToPage(page);
+            ScrollToPage(page);
         }
         else
         {
@@ -612,13 +600,13 @@ public partial class MainWindow : Window
             bool alreadyShown = _mode == ViewMode.Facing
                 ? FacingGroupStart(page) == FacingGroupStart(_currentPage)
                 : page == _currentPage;
-            if (alreadyShown && _items.Count > 0)
+            if (alreadyShown)
             {
                 _currentPage = page;
                 // Still refresh the box: "0" or "99999" clamped to the current page must
                 // not leave the stale typed value standing next to the page count.
                 PageBox.Text = (page + 1).ToString();
-                if (syncChapters) SyncChapterSelection();
+                if (syncChapters) SyncChapterSelection(_doc);
                 return;
             }
             _currentPage = page;
@@ -626,7 +614,7 @@ public partial class MainWindow : Window
         }
 
         if (syncChapters)
-            SyncChapterSelection();
+            SyncChapterSelection(_doc);
     }
 
     private void StepPage(int direction)
@@ -652,10 +640,19 @@ public partial class MainWindow : Window
 
     private void PageBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && int.TryParse(PageBox.Text, out int p))
+        if (e.Key != Key.Enter) return;
+
+        if (int.TryParse(PageBox.Text, out int p))
         {
             GoToPage(p - 1);
             Scroller.Focus();
+            e.Handled = true;
+        }
+        else if (_doc is not null)
+        {
+            // Text that cannot be a page must not stand next to the page count (GoToPage
+            // refreshes the box for the same reason). With no document there is no page to show.
+            PageBox.Text = (_currentPage + 1).ToString();
             e.Handled = true;
         }
     }
@@ -745,8 +742,9 @@ public partial class MainWindow : Window
             // PdfPig parsing runs off the UI thread so the PDF keeps rendering immediately.
             var roots = await Task.Run(() => doc.GetChapters(ct, untitled), ct);
 
-            // Apply only if this document is still the active one.
-            if (ct.IsCancellationRequested || !ReferenceEquals(doc, _doc))
+            // Apply only if this document is still the active one: every change of _doc
+            // cancels this token first, with no await in between.
+            if (ct.IsCancellationRequested)
                 return;
 
             _chapterRoots = roots;
@@ -754,7 +752,7 @@ public partial class MainWindow : Window
             ChapterTree.ItemsSource = roots;
             _chapterState = roots.Count == 0 ? ChapterLoadState.Empty : ChapterLoadState.Loaded;
             ShowChapterState(_chapterState);
-            SyncChapterSelection();
+            SyncChapterSelection(doc);
         }
         catch (OperationCanceledException)
         {
@@ -783,13 +781,13 @@ public partial class MainWindow : Window
     /// right-hand page of the visible spread (or the cover alone), so a bookmark on either
     /// page of the spread can become active.
     /// </summary>
-    private int GetChapterSyncPage()
+    private int GetChapterSyncPage(PdfDoc doc)
     {
-        if (_mode != ViewMode.Facing || _doc is null)
+        if (_mode != ViewMode.Facing)
             return _currentPage;
 
         int start = FacingGroupStart(_currentPage);
-        if (start != 0 && start + 1 < _doc.PageCount)
+        if (start != 0 && start + 1 < doc.PageCount)
             return start + 1;
         return start;
     }
@@ -800,11 +798,11 @@ public partial class MainWindow : Window
     /// on that page is kept so tree clicks don't flash away; otherwise Depth then
     /// SourceOrder win. Facing mode uses <see cref="GetChapterSyncPage"/>.
     /// </summary>
-    private void SyncChapterSelection()
+    private void SyncChapterSelection(PdfDoc doc)
     {
-        if (_doc is null || _navigableChapters.Count == 0) return;
+        if (_navigableChapters.Count == 0) return;
 
-        int syncPage = GetChapterSyncPage();
+        int syncPage = GetChapterSyncPage(doc);
 
         // Binary search: last entry with PageIndex <= syncPage (list is sorted by
         // PageIndex, Depth, SourceOrder — "greatest page, deepest/later node").
@@ -834,7 +832,6 @@ public partial class MainWindow : Window
         }
 
         var active = _navigableChapters[best];
-        if (ReferenceEquals(active, _selectedChapter)) return;
 
         _suppressChapterNav = true;
         try
@@ -966,7 +963,18 @@ public partial class MainWindow : Window
         if (_doc is null) return;
         try
         {
-            new PrintPreviewWindow(_doc, _currentPage) { Owner = this }.ShowDialog();
+            var preview = new PrintPreviewWindow(_doc, _currentPage);
+            // Closed however this goes: a window that was built but never closed keeps the app
+            // alive after the main window has gone.
+            try
+            {
+                preview.Owner = this;
+                preview.ShowDialog();
+            }
+            finally
+            {
+                preview.Close();
+            }
         }
         catch (Exception ex)
         {
@@ -1100,7 +1108,7 @@ public partial class MainWindow : Window
 
     private void Scroller_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (_doc is null || _mode != ViewMode.Continuous || _items.Count == 0) return;
+        if (_doc is null || _mode != ViewMode.Continuous) return;
 
         // Track the topmost visible page.
         int top = TopVisiblePage();
@@ -1108,7 +1116,7 @@ public partial class MainWindow : Window
         {
             _currentPage = top;
             PageBox.Text = (top + 1).ToString();
-            SyncChapterSelection();
+            SyncChapterSelection(_doc);
         }
 
         ScheduleRender();
@@ -1161,9 +1169,10 @@ public partial class MainWindow : Window
         return last < 0 ? (_currentPage, _currentPage) : (first, last);
     }
 
-    private async Task UpdateRenderedPagesAsync()
+    /// <summary>Internal so tools/HangProbe can drive the render races directly.</summary>
+    internal async Task UpdateRenderedPagesAsync()
     {
-        if (_doc is null || _items.Count == 0) return;
+        if (_doc is null) return;
 
         CancelPendingRenders();
         var ct = _renderCts.Token;
@@ -1204,13 +1213,10 @@ public partial class MainWindow : Window
             if (ct.IsCancellationRequested) return;
             var item = _items[i];
             int targetPx = Math.Min(MaxRenderPixelWidth, (int)Math.Round(item.DisplayWidth * dpiScale));
-            if (item.DisplayWidth > 0 && item.DisplayHeight > 0)
-            {
-                // Rendered height follows the page's aspect ratio (PdfDoc renders by width).
-                double aspect = item.DisplayHeight / item.DisplayWidth;
-                if ((double)targetPx * targetPx * aspect > MaxRenderPixelArea)
-                    targetPx = (int)Math.Floor(Math.Sqrt(MaxRenderPixelArea / aspect));
-            }
+            // Rendered height follows the page's aspect ratio (PdfDoc renders by width).
+            double aspect = item.DisplayHeight / item.DisplayWidth;
+            if ((double)targetPx * targetPx * aspect > MaxRenderPixelArea)
+                targetPx = (int)Math.Floor(Math.Sqrt(MaxRenderPixelArea / aspect));
             if (targetPx < 8 || item.RenderedPixelWidth == targetPx)
                 continue;
 
