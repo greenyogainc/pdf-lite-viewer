@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using PdfLiteViewer;
 
@@ -26,6 +27,7 @@ internal static class AppChecks
             await CheckKit.RunAsync("app: an unobserved task failure is logged", UnobservedTaskAsync),
             CheckKit.Run("app: a locked log never takes the app down", LockedLog),
             CheckKit.Run("app: the first document argument wins", FirstDocumentWins),
+            await CheckKit.RunAsync("app: the viewer runs per-monitor DPI aware", ViewerDpiAwarenessAsync),
             CheckKit.Run("strings: a missing key comes back as the key", MissingKey),
             CheckKit.Run("strings: right-to-left follows the shipped translations", RightToLeft),
             CheckKit.Run("strings: ApplyFlowDirection mirrors only shipped RTL and sets the language", FlowDirectionApplied),
@@ -37,6 +39,40 @@ internal static class AppChecks
         };
         return checks;
     }
+
+    // ---------- App: DPI awareness ----------
+
+    /// <summary>
+    /// Windows only sends the DPI change MainWindow.OnDpiChanged handles to a per-monitor-aware
+    /// process, and the exe's manifest decides that. The probe has a manifest of its own, so
+    /// this asks the viewer's real exe.
+    /// </summary>
+    private static async Task<Check> ViewerDpiAwarenessAsync()
+    {
+        const string name = "app: the viewer runs per-monitor DPI aware";
+        const int processPerMonitorDpiAware = 2;
+        using var viewer = Process.Start(Path.Combine(AppContext.BaseDirectory, "PdfLiteViewer.exe"))
+            ?? throw new InvalidOperationException("the viewer did not start");
+        try
+        {
+            bool up = await Poll.UntilAsync(() =>
+            {
+                viewer.Refresh();
+                return viewer.MainWindowHandle != IntPtr.Zero;
+            }, TimeSpan.FromSeconds(30));
+            int result = GetProcessDpiAwareness(viewer.Handle, out int awareness);
+            return new Check(name, up && result == 0 && awareness == processPerMonitorDpiAware,
+                $"window up={up}, GetProcessDpiAwareness result {result}, awareness {awareness}");
+        }
+        finally
+        {
+            viewer.CloseMainWindow();
+            if (!viewer.WaitForExit(5000)) viewer.Kill();
+        }
+    }
+
+    [DllImport("shcore.dll")]
+    private static extern int GetProcessDpiAwareness(IntPtr process, out int awareness);
 
     // ---------- App: failure paths ----------
 
